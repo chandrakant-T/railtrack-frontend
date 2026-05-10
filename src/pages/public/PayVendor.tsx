@@ -149,7 +149,7 @@ const PayVendor = () => {
 
         {/* Cash warning */}
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-          <ShieldAlert size={18} className="text-red-600 flex-shrink-0 mt-0.5" />
+          <ShieldAlert size={18} className="text-red-600 shrink-0 mt-0.5" />
           <div>
             <p className="font-semibold text-red-700 text-sm">Cash payments not allowed</p>
             <p className="text-red-500 text-xs mt-0.5">If this vendor demands cash, tap the button below to file an instant complaint.</p>

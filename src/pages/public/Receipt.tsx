@@ -64,7 +64,7 @@ const Receipt = () => {
 
         {/* Overcharge notice */}
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-          <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
           <p className="text-amber-700 text-sm">
             If the amount charged differs from this receipt, file an overcharging complaint immediately.
           </p>
