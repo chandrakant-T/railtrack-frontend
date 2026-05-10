@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import Navbar from '../../components/layout/Navbar';
 import { getVendorById } from '../../api/vendor.api';
 import { getVendorInventory } from '../../api/inventory.api';
-import { AlertTriangle, Star, Package, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, Star, Package, ShieldAlert , CreditCard } from 'lucide-react';
 import { getVendorStatusColor, formatCurrency } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
@@ -53,7 +53,7 @@ const VendorProfile = () => {
         {/* Vendor header */}
         <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm mb-6">
           <div className="flex items-start gap-4">
-            <div className="w-14 h-14 rounded-full bg-[#0B1F3A] text-[#F5A623] flex items-center justify-center font-bold text-lg flex-shrink-0">
+            <div className="w-14 h-14 rounded-full bg-[#0B1F3A] text-[#F5A623] flex items-center justify-center font-bold text-lg shrink-0">
               {vendor.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
             </div>
             <div className="flex-1">
@@ -68,7 +68,7 @@ const VendorProfile = () => {
               </p>
               <p className="text-gray-400 text-xs mt-0.5">License: {vendor.license_number || 'N/A'} · FSSAI: {vendor.fssai_number || 'N/A'}</p>
             </div>
-            <div className="text-right flex-shrink-0">
+            <div className="text-right shrink-0">
               <div className="flex items-center gap-1 text-green-700 font-bold text-lg justify-end">
                 <Star size={16} fill="currentColor" /> {vendor.rating}
               </div>
@@ -142,6 +142,18 @@ const VendorProfile = () => {
           >
             <ShieldAlert size={16} /> Cash demanded
           </Link>
+          <Link
+    to={`/pay/${vendor.id}`}
+    className="flex-1 bg-[#0B1F3A] text-white py-3 rounded-xl font-semibold text-center hover:bg-blue-900 transition-colors flex items-center justify-center gap-2"
+  >
+    <CreditCard size={16} /> Pay this vendor
+  </Link>
+  <Link
+    to={`/complaint?vendor=${vendor.id}&vendorName=${encodeURIComponent(vendor.full_name)}&train=${vendor.train_number}`}
+    className="flex-1 bg-red-50 text-red-700 border border-red-200 py-3 rounded-xl font-semibold text-center hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
+  >
+    <AlertTriangle size={16} /> Report
+  </Link>
         </div>
       </div>
     </div>

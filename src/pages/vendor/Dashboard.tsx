@@ -61,37 +61,50 @@ const VendorDashboard = () => {
         </div>
 
         {/* QR Code */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
-          <div className="flex items-center gap-2 mb-4">
-            <QrCode size={18} className="text-gray-400" />
-            <h2 className="font-semibold text-[#0B1F3A]">Your payment QR code</h2>
-          </div>
-          <div className="flex items-center gap-8">
-            <div className="w-28 h-28 bg-gray-100 rounded-xl flex items-center justify-center shrink-0">
-              <svg width="80" height="80" viewBox="0 0 60 60" fill="none">
-                <rect x="2" y="2" width="24" height="24" rx="2" stroke="#0B1F3A" strokeWidth="1.5"/>
-                <rect x="8" y="8" width="12" height="12" rx="1" fill="#0B1F3A"/>
-                <rect x="34" y="2" width="24" height="24" rx="2" stroke="#0B1F3A" strokeWidth="1.5"/>
-                <rect x="40" y="8" width="12" height="12" rx="1" fill="#0B1F3A"/>
-                <rect x="2" y="34" width="24" height="24" rx="2" stroke="#0B1F3A" strokeWidth="1.5"/>
-                <rect x="8" y="40" width="12" height="12" rx="1" fill="#0B1F3A"/>
-                <rect x="34" y="34" width="6" height="6" rx="1" fill="#0B1F3A"/>
-                <rect x="44" y="34" width="6" height="6" rx="1" fill="#0B1F3A"/>
-                <rect x="34" y="44" width="6" height="6" rx="1" fill="#0B1F3A"/>
-                <rect x="44" y="52" width="6" height="6" rx="1" fill="#0B1F3A"/>
-                <rect x="52" y="44" width="6" height="6" rx="1" fill="#0B1F3A"/>
-              </svg>
-            </div>
-            <div>
-              <p className="font-semibold text-[#0B1F3A] mb-1">Scan to pay</p>
-              <p className="text-gray-500 text-sm mb-3">Payment goes to Railway central account. Cash transactions are not allowed.</p>
-              <div className="flex gap-2">
-                <span className="bg-green-50 text-green-700 text-xs px-3 py-1.5 rounded-lg font-medium">QR Active</span>
-                <button className="border border-gray-200 text-gray-600 text-xs px-3 py-1.5 rounded-lg hover:bg-gray-50">Download QR</button>
-              </div>
-            </div>
-          </div>
-        </div>
+<div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
+  <div className="flex items-center gap-2 mb-4">
+    <QrCode size={18} className="text-gray-400" />
+    <h2 className="font-semibold text-[#0B1F3A]">Your payment QR code</h2>
+  </div>
+  <div className="flex items-center gap-8">
+    <div className="shrink-0 text-center">
+      {user && (
+        <img
+          src={`https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(`https://railtrack-frontend.vercel.app/pay/${user.id}`)}&color=0B1F3A`}
+          alt="Vendor QR Code"
+          className="rounded-xl border border-gray-100"
+        />
+      )}
+      <p className="text-xs text-gray-400 mt-2">Scan to pay</p>
+    </div>
+    <div>
+      <p className="font-semibold text-[#0B1F3A] mb-1">Show this to passengers</p>
+      <p className="text-gray-500 text-sm mb-3">
+        Passengers scan this QR → select items → pay via UPI. Every transaction is recorded.
+      </p>
+      <div className="flex gap-2 flex-wrap">
+        <span className="bg-green-50 text-green-700 text-xs px-3 py-1.5 rounded-lg font-medium">QR Active</span>
+        
+          href={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(`https://railtrack-frontend.vercel.app/pay/${user?.id}`)}&color=0B1F3A`}
+          download="railtrack-qr.png"
+          target="_blank"
+          className="border border-gray-200 text-gray-600 text-xs px-3 py-1.5 rounded-lg hover:bg-gray-50"
+        <a>
+          Download QR
+        </a>
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(`https://railtrack-frontend.vercel.app/pay/${user?.id}`);
+            toast.success('Payment link copied!');
+          }}
+          className="border border-gray-200 text-gray-600 text-xs px-3 py-1.5 rounded-lg hover:bg-gray-50"
+        >
+          Copy link
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 
         {/* Inventory */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-6">

@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import Navbar from '../../components/layout/Navbar';
 import { getVendorsByTrain } from '../../api/vendor.api';
-import { getVendorInventory } from '../../api/inventory.api';
-import { Search, AlertTriangle, Star, ChevronRight, Train } from 'lucide-react';
+import { Search, AlertTriangle, Star, ChevronRight, Train, CreditCard } from 'lucide-react';
 import { getVendorStatusColor } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 
@@ -75,7 +74,9 @@ const TrainSearch = () => {
         {!loading && vendors.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-4">
-              <p className="text-sm text-gray-500">{vendors.length} vendor{vendors.length > 1 ? 's' : ''} found on train {trainNumber}</p>
+              <p className="text-sm text-gray-500">
+                {vendors.length} vendor{vendors.length > 1 ? 's' : ''} found on train {trainNumber}
+              </p>
               <Link to="/complaint" className="text-sm text-red-600 hover:underline flex items-center gap-1">
                 <AlertTriangle size={13} /> Report unlisted vendor
               </Link>
@@ -83,14 +84,16 @@ const TrainSearch = () => {
 
             <div className="flex flex-col gap-4">
               {vendors.map((vendor) => (
-                <Link
+                <div
                   key={vendor.id}
-                  to={`/vendor/${vendor.id}`}
                   className="bg-white border border-gray-100 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex items-center gap-4"
                 >
-                  <div className="w-11 h-11 rounded-full bg-[#0B1F3A] text-[#F5A623] flex items-center justify-center font-semibold text-sm flex-shrink-0">
+                  {/* Avatar */}
+                  <div className="w-11 h-11 rounded-full bg-[#0B1F3A] text-[#F5A623] flex items-center justify-center font-semibold text-sm shrink-0">
                     {vendor.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                   </div>
+
+                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-[#0B1F3A]">{vendor.full_name}</span>
@@ -107,16 +110,47 @@ const TrainSearch = () => {
                       {vendor.vendor_type.replace('_', ' ')} · Coach {vendor.coach_number} · {vendor.vendor_code}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <div className="text-right">
-                      <div className="flex items-center gap-1 text-sm font-semibold text-green-700">
-                        <Star size={13} fill="currentColor" /> {vendor.rating}
-                      </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1 text-sm font-semibold text-green-700 mr-1">
+                      <Star size={13} fill="currentColor" /> {vendor.rating}
                     </div>
-                    <ChevronRight size={18} className="text-gray-300" />
+
+                    {/* Pay button */}
+                    {vendor.status === 'active' && (
+                      <Link
+                        to={`/pay/${vendor.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-[#F5A623] text-[#0B1F3A] text-xs px-3 py-1.5 rounded-lg font-semibold hover:bg-amber-400 transition-colors flex items-center gap-1"
+                      >
+                        <CreditCard size={12} /> Pay
+                      </Link>
+                    )}
+
+                    {/* View profile */}
+                    <Link
+                      to={`/vendor/${vendor.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="border border-gray-200 text-gray-500 text-xs px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-1"
+                    >
+                      View <ChevronRight size={12} />
+                    </Link>
                   </div>
-                </Link>
+                </div>
               ))}
+            </div>
+
+            {/* Info banner */}
+            <div className="mt-6 bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
+              <CreditCard size={16} className="text-blue-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-blue-700 font-medium text-sm">Pay directly via UPI</p>
+                <p className="text-blue-500 text-xs mt-0.5">
+                  Click Pay on any vendor to select items and pay via Razorpay UPI. Every transaction is recorded and receipts are auto-generated.
+                  Cash payments are not allowed — report any vendor demanding cash instantly.
+                </p>
+              </div>
             </div>
           </div>
         )}
