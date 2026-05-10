@@ -13,12 +13,19 @@ import PassengerDashboard from './pages/passenger/Dashboard';
 import VendorDashboard from './pages/vendor/Dashboard';
 import StationAdminDashboard from './pages/admin/StationDashboard';
 import SuperAdminDashboard from './pages/admin/SuperDashboard';
+import PayVendor from './pages/public/PayVendor';
+import Receipt from './pages/public/Receipt';
+
+
+
 
 function App() {
   return (
     <BrowserRouter>
       <Toaster position="top-right" />
       <Routes>
+        <Route path="/pay/:vendorId" element={<PayVendor />} />
+        <Route path="/receipt/:receiptId" element={<Receipt />} />
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
