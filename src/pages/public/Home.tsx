@@ -37,7 +37,7 @@ const Home = () => {
               value={trainNumber}
               onChange={(e) => setTrainNumber(e.target.value)}
               placeholder="Enter train number (e.g. 12951)"
-              className="flex-1 px-4 py-3 rounded-lg text-gray-900 text-sm outline-none"
+              className="flex-1 px-4 py-3 rounded-lg text-white text-sm outline-amber-200 border-2 border-amber-200"
             />
             <button type="submit" className="bg-[#F5A623] text-[#0B1F3A] px-6 py-3 rounded-lg font-semibold hover:bg-amber-400 transition-colors flex items-center gap-2">
               <Search size={16} /> Search
