@@ -14,6 +14,8 @@ const StationAdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
   const [updating, setUpdating] = useState<string | null>(null);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [resolveNote, setResolveNote] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -34,14 +36,31 @@ const StationAdminDashboard = () => {
     }
   };
 
-  const handleStatus = async (id: string, status: string) => {
+  const handleStatus = async (id: string, status: string, note?: string) => {
     setUpdating(id);
     try {
-      await updateComplaintStatus(id, { status });
-      setComplaints(complaints.map(c => c.id === id ? { ...c, status } : c));
+      await updateComplaintStatus(id, { status, note: note || '' });
+      // Refresh complaints list to reflect updated logs and status
+      fetchData();
       toast.success(`Complaint marked as ${status}`);
     } catch {
       toast.error('Failed to update status');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const handleEscalate = async (id: string) => {
+    setUpdating(id);
+    try {
+      await updateComplaintStatus(id, { 
+        status: 'forwarded', 
+        note: 'Escalated to RPF/GRP by Station Admin' 
+      });
+      fetchData();
+      toast.success('Complaint escalated to RPF/GRP');
+    } catch {
+      toast.error('Failed to escalate');
     } finally {
       setUpdating(null);
     }
@@ -123,11 +142,25 @@ const StationAdminDashboard = () => {
                     )}
                     {c.description && <p className="text-gray-400 text-sm mt-1 italic">"{c.description}"</p>}
                     <p className="text-gray-400 text-xs mt-2">{formatDate(c.filed_at)}</p>
+
+                    {/* Audit trail */}
+                    {c.complaint_logs && c.complaint_logs.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-50">
+                        <p className="text-xs text-gray-400 mb-1 font-medium">Audit trail:</p>
+                        {c.complaint_logs.map((log: any, i: number) => (
+                          <p key={i} className="text-xs text-gray-400">
+                            → {log.old_status} to {log.new_status}
+                            {log.note && ` — "${log.note}"`}
+                            · {formatDate(log.updated_at)}
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {!['resolved', 'rejected'].includes(c.status) && (
                     <div className="flex gap-2 shrink-0 flex-wrap">
-                      {c.status === 'submitted' || c.status === 'forwarded' ? (
+                      {(c.status === 'submitted' || c.status === 'forwarded') && (
                         <button
                           disabled={updating === c.id}
                           onClick={() => handleStatus(c.id, 'acknowledged')}
@@ -135,10 +168,19 @@ const StationAdminDashboard = () => {
                         >
                           <Clock size={13} /> Acknowledge
                         </button>
-                      ) : null}
+                      )}
+                      {(c.complaint_type === 'cash_demand' || c.priority === 'high') && (
+                        <button
+                          disabled={updating === c.id}
+                          onClick={() => handleEscalate(c.id)}
+                          className="flex items-center gap-1.5 bg-orange-50 text-orange-700 border border-orange-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-orange-100 disabled:opacity-60"
+                        >
+                          <AlertTriangle size={13} /> Escalate to RPF
+                        </button>
+                      )}
                       <button
                         disabled={updating === c.id}
-                        onClick={() => handleStatus(c.id, 'resolved')}
+                        onClick={() => setResolvingId(c.id)}
                         className="flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-100 disabled:opacity-60"
                       >
                         <CheckCircle size={13} /> Resolve
@@ -158,6 +200,50 @@ const StationAdminDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Resolution confirmation modal */}
+      {resolvingId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <h2 className="font-bold text-[#0B1F3A] text-lg mb-2">Resolve complaint</h2>
+            <p className="text-gray-500 text-sm mb-4">
+              You must provide details of the action taken. This note is permanent and visible to Super Admin.
+            </p>
+            <textarea
+              value={resolveNote}
+              onChange={(e) => setResolveNote(e.target.value)}
+              placeholder="Describe exactly what action was taken e.g. 'Vendor warned and fined ₹500. Passenger refunded the excess ₹6.'"
+              rows={4}
+              className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#0B1F3A] resize-none mb-4"
+            />
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-xs text-amber-700">
+              ⚠️ False resolution is a disciplinary offense. All resolution notes are logged with your account ID and timestamp.
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setResolvingId(null); setResolveNote(''); }}
+                className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!resolveNote.trim() || resolveNote.trim().length < 20}
+                onClick={async () => {
+                  if (!resolveNote.trim() || resolveNote.trim().length < 20) {
+                    return toast.error('Please provide a detailed resolution note (min 20 characters)');
+                  }
+                  await handleStatus(resolvingId, 'resolved', resolveNote);
+                  setResolvingId(null);
+                  setResolveNote('');
+                }}
+                className="flex-1 bg-green-600 text-white py-2.5 rounded-xl font-medium hover:bg-green-700 disabled:opacity-40"
+              >
+                Confirm resolution
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
