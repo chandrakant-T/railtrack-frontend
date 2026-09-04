@@ -5,17 +5,27 @@ import {
   getAllComplaints,
   manageVendorStatus,
   createStationAdmin,
+  approveVendor,
 } from "../../api/admin.api";
 import { getAllVendors } from "../../api/vendor.api";
+import { updateComplaintStatus } from "../../api/complaint.api";
 import {
   getStatusColor,
   getPriorityColor,
   getVendorStatusColor,
   formatDate,
 } from "../../utils/helpers";
-import { Users, AlertTriangle, ShieldOff, TrendingUp } from "lucide-react";
+import {
+  Users,
+  AlertTriangle,
+  ShieldOff,
+  TrendingUp,
+  RotateCcw,
+  Send,
+  Clock,
+  AlertCircle,
+} from "lucide-react";
 import toast from "react-hot-toast";
-import { approveVendor } from "../../api/admin.api";
 
 const SuperAdminDashboard = () => {
   const [stats, setStats] = useState<any>(null);
@@ -34,6 +44,30 @@ const SuperAdminDashboard = () => {
     station_code: "",
   });
   const [creatingAdmin, setCreatingAdmin] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  const fetchAllData = async () => {
+    try {
+      const [sRes, cRes, vRes] = await Promise.all([
+        getDashboardStats(),
+        getAllComplaints({}),
+        getAllVendors({}),
+      ]);
+      const pRes = await getAllVendors({ status: "pending_approval" });
+      setPendingVendors(pRes.data);
+      setStats(sRes.data);
+      setComplaints(cRes.data);
+      setVendors(vRes.data);
+    } catch {
+      toast.error("Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllData();
+  }, []);
 
   const handleCreateAdmin = async () => {
     if (
@@ -57,28 +91,6 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [sRes, cRes, vRes] = await Promise.all([
-          getDashboardStats(),
-          getAllComplaints({}),
-          getAllVendors({}),
-        ]);
-        const pRes = await getAllVendors({ status: "pending_approval" });
-        setPendingVendors(pRes.data);
-        setStats(sRes.data);
-        setComplaints(cRes.data);
-        setVendors(vRes.data);
-      } catch {
-        toast.error("Failed to load data");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
-
   const handleVendorStatus = async (id: string, status: string) => {
     try {
       await manageVendorStatus(id, status);
@@ -86,6 +98,38 @@ const SuperAdminDashboard = () => {
       toast.success(`Vendor ${status}`);
     } catch {
       toast.error("Failed to update vendor");
+    }
+  };
+
+  const handleReopen = async (id: string) => {
+    setUpdatingId(id);
+    try {
+      await updateComplaintStatus(id, {
+        status: "submitted",
+        note: "Re-opened by Super Admin due to insufficient or invalid station resolution.",
+      });
+      toast.success("Complaint re-opened");
+      fetchAllData();
+    } catch {
+      toast.error("Failed to re-open complaint");
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleEscalate = async (id: string) => {
+    setUpdatingId(id);
+    try {
+      await updateComplaintStatus(id, {
+        status: "forwarded",
+        note: "Directly escalated to RPF/GRP by Super Admin.",
+      });
+      toast.success("Complaint escalated to RPF/GRP");
+      fetchAllData();
+    } catch {
+      toast.error("Failed to escalate complaint");
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -98,7 +142,7 @@ const SuperAdminDashboard = () => {
             Super Admin Dashboard
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            Full platform oversight and management
+            Full platform oversight, audit log tracking, and overrides
           </p>
         </div>
 
@@ -149,7 +193,7 @@ const SuperAdminDashboard = () => {
           ))}
         </div>
 
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
           <div className="flex gap-2">
             {(["complaints", "vendors", "pending"] as const).map((t) => (
               <button
@@ -169,7 +213,7 @@ const SuperAdminDashboard = () => {
           </button>
         </div>
 
-        {/* MOdal */}
+        {/* Create Admin Modal */}
         {showCreateAdmin && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
             <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
@@ -254,54 +298,177 @@ const SuperAdminDashboard = () => {
           </div>
         )}
 
-
-        {/* Complaints tab */}
+        {/* Complaints tab with Audit Log View & SA Overrides */}
         {tab === "complaints" && (
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-4">
             {loading ? (
               <div className="bg-white rounded-xl p-16 text-center text-gray-400">
-                Loading...
+                Loading complaints...
               </div>
             ) : complaints.length === 0 ? (
               <div className="bg-white rounded-xl p-16 text-center text-gray-400">
-                No complaints yet
+                No complaints found
               </div>
             ) : (
               complaints.map((c) => (
                 <div
                   key={c.id}
-                  className={`bg-white rounded-xl border shadow-sm p-5 ${c.priority === "high" ? "border-l-4 border-l-red-500 border-gray-100" : "border-gray-100"}`}
+                  className={`bg-white rounded-xl border shadow-sm p-5 ${
+                    c.priority === "high"
+                      ? "border-l-4 border-l-red-500 border-gray-100"
+                      : "border-gray-100"
+                  }`}
                 >
-                  <div className="flex items-center gap-2 flex-wrap mb-2">
-                    <span className="font-semibold text-[#0B1F3A] text-sm">
-                      {c.reference_id}
-                    </span>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${getStatusColor(c.status)}`}
-                    >
-                      {c.status}
-                    </span>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPriorityColor(c.priority)}`}
-                    >
-                      {c.priority}
-                    </span>
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                        <span className="font-semibold text-[#0B1F3A] text-sm">
+                          {c.reference_id}
+                        </span>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${getStatusColor(
+                            c.status,
+                          )}`}
+                        >
+                          {c.status}
+                        </span>
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPriorityColor(
+                            c.priority,
+                          )}`}
+                        >
+                          {c.priority}
+                        </span>
+                        {c.complaint_type === "cash_demand" && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">
+                            Cash demand
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-gray-600 text-sm">
+                        <span className="font-medium">Train:</span> {c.train_number}
+                        {c.coach_number && (
+                          <>
+                            {" "}
+                            · <span className="font-medium">Coach:</span>{" "}
+                            {c.coach_number}
+                          </>
+                        )}
+                        {c.vendor_name && (
+                          <>
+                            {" "}
+                            · <span className="font-medium">Vendor:</span>{" "}
+                            {c.vendor_name}
+                          </>
+                        )}
+                      </p>
+
+                      {c.item_name && (
+                        <p className="text-gray-500 text-sm mt-0.5">
+                          {c.item_name} — IRCTC ₹{c.irctc_price} · Charged ₹
+                          {c.charged_price}
+                        </p>
+                      )}
+
+                      {c.description && (
+                        <p className="text-gray-500 text-sm mt-1 italic">
+                          "{c.description}"
+                        </p>
+                      )}
+
+                      <p className="text-gray-400 text-xs mt-2">
+                        Filed on: {formatDate(c.filed_at)}
+                      </p>
+
+                      {/* Audit Log / Action Trail Section */}
+                      {c.complaint_logs && c.complaint_logs.length > 0 && (
+                        <div className="mt-4 pt-3 border-t border-gray-100 bg-gray-50 p-3 rounded-lg">
+                          <p className="text-xs font-semibold text-gray-600 mb-2 flex items-center gap-1">
+                            <Clock size={13} /> Station Audit Trail & Notes:
+                          </p>
+                          <div className="space-y-1.5">
+                            {c.complaint_logs.map((log: any, i: number) => {
+                              const isShortNote =
+                                log.new_status === "resolved" &&
+                                (!log.note || log.note.trim().length < 20);
+                              return (
+                                <div
+                                  key={i}
+                                  className="text-xs text-gray-600 bg-white p-2 rounded border border-gray-100"
+                                >
+                                  <div className="flex items-center justify-between font-medium text-gray-700">
+                                    <span>
+                                      → {log.old_status || "submitted"} to{" "}
+                                      <span className="font-semibold">
+                                        {log.new_status}
+                                      </span>
+                                    </span>
+                                    <span className="text-gray-400 text-[11px]">
+                                      {formatDate(log.updated_at)}
+                                    </span>
+                                  </div>
+
+                                  {log.note ? (
+                                    <p
+                                      className={`mt-1 ${
+                                        isShortNote
+                                          ? "text-amber-700 font-medium"
+                                          : "text-gray-500"
+                                      }`}
+                                    >
+                                      Note: "{log.note}"
+                                    </p>
+                                  ) : (
+                                    <p className="mt-1 text-gray-400 italic">
+                                      No note provided
+                                    </p>
+                                  )}
+
+                                  {isShortNote && (
+                                    <p className="text-[10px] text-amber-600 mt-1 flex items-center gap-1">
+                                      <AlertCircle size={10} /> Suspicious/Short
+                                      resolution note detected.
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Super Admin Override Actions */}
+                    <div className="flex flex-col gap-2 shrink-0">
+                      {["resolved", "rejected"].includes(c.status) && (
+                        <button
+                          disabled={updatingId === c.id}
+                          onClick={() => handleReopen(c.id)}
+                          className="flex items-center justify-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-100 disabled:opacity-60"
+                        >
+                          <RotateCcw size={13} /> Re-open Complaint
+                        </button>
+                      )}
+
+                      {c.status !== "forwarded" && (
+                        <button
+                          disabled={updatingId === c.id}
+                          onClick={() => handleEscalate(c.id)}
+                          className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-700 border border-orange-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-orange-100 disabled:opacity-60"
+                        >
+                          <Send size={13} /> Escalate to RPF/GRP
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-gray-600 text-sm">
-                    Train {c.train_number} ·{" "}
-                    {c.complaint_type?.replace("_", " ")} ·{" "}
-                    {c.vendor_name || "Unknown vendor"}
-                  </p>
-                  <p className="text-gray-400 text-xs mt-1">
-                    {formatDate(c.filed_at)}
-                  </p>
                 </div>
               ))
             )}
           </div>
         )}
 
-        {/* pending tab */}
+        {/* Pending Approvals Tab */}
         {tab === "pending" && (
           <div className="flex flex-col gap-4">
             {pendingVendors.length === 0 ? (
@@ -314,7 +481,7 @@ const SuperAdminDashboard = () => {
                   key={v.id}
                   className="bg-white rounded-xl border border-amber-200 shadow-sm p-5"
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-4">
                     <div>
                       <p className="font-semibold text-[#0B1F3A]">
                         {v.full_name}
@@ -354,9 +521,9 @@ const SuperAdminDashboard = () => {
           </div>
         )}
 
-        {/* Vendors tab */}
+        {/* Vendors Tab */}
         {tab === "vendors" && (
-          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
@@ -398,14 +565,20 @@ const SuperAdminDashboard = () => {
                       </td>
                       <td className="px-4 py-4 text-center">
                         <span
-                          className={`font-medium ${v.complaint_count > 10 ? "text-red-600" : "text-gray-700"}`}
+                          className={`font-medium ${
+                            v.complaint_count > 10
+                              ? "text-red-600"
+                              : "text-gray-700"
+                          }`}
                         >
                           {v.complaint_count}
                         </span>
                       </td>
                       <td className="px-4 py-4 text-center">
                         <span
-                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${getVendorStatusColor(v.status)}`}
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${getVendorStatusColor(
+                            v.status,
+                          )}`}
                         >
                           {v.status}
                         </span>

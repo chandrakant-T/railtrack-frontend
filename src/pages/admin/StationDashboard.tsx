@@ -6,6 +6,7 @@ import { getDashboardStats } from '../../api/admin.api';
 import { getStatusColor, getPriorityColor, formatDate } from '../../utils/helpers';
 import { CheckCircle, XCircle, AlertTriangle, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
+import axios from 'axios';
 
 const StationAdminDashboard = () => {
   const { user } = useAuth();
@@ -16,6 +17,8 @@ const StationAdminDashboard = () => {
   const [updating, setUpdating] = useState<string | null>(null);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [resolveNote, setResolveNote] = useState('');
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+const [rejectNote, setRejectNote] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -50,21 +53,19 @@ const StationAdminDashboard = () => {
     }
   };
 
-  const handleEscalate = async (id: string) => {
-    setUpdating(id);
-    try {
-      await updateComplaintStatus(id, { 
-        status: 'forwarded', 
-        note: 'Escalated to RPF/GRP by Station Admin' 
-      });
-      fetchData();
-      toast.success('Complaint escalated to RPF/GRP');
-    } catch {
-      toast.error('Failed to escalate');
-    } finally {
-      setUpdating(null);
-    }
-  };
+ const handleEscalate = async (id: string) => {
+  setUpdating(id);
+  try {
+    // Call dedicated escalation endpoint to trigger RPF/GRP emails
+    await axios.post(`/api/complaints/${id}/escalate`);
+    fetchData();
+    toast.success('Complaint escalated & re-emailed to RPF/GRP');
+  } catch {
+    toast.error('Failed to escalate complaint');
+  } finally {
+    setUpdating(null);
+  }
+};
 
   const filtered = filter === 'all' ? complaints : complaints.filter(c => c.status === filter);
   const pending = complaints.filter(c => !['resolved', 'rejected'].includes(c.status)).length;
@@ -186,12 +187,12 @@ const StationAdminDashboard = () => {
                         <CheckCircle size={13} /> Resolve
                       </button>
                       <button
-                        disabled={updating === c.id}
-                        onClick={() => handleStatus(c.id, 'rejected')}
-                        className="flex items-center gap-1.5 bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-60"
-                      >
-                        <XCircle size={13} /> Reject
-                      </button>
+  disabled={updating === c.id}
+  onClick={() => setRejectingId(c.id)}
+  className="flex items-center gap-1.5 bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-100"
+>
+  <XCircle size={13} /> Reject
+</button>
                     </div>
                   )}
                 </div>
