@@ -63,7 +63,7 @@ const VendorRegister = () => {
 
         {/* Info banner */}
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 flex items-start gap-3">
-          <ShieldCheck size={18} className="text-blue-600 flex-shrink-0 mt-0.5" />
+          <ShieldCheck size={18} className="text-blue-600 shrink-0 mt-0.5" />
           <div>
             <p className="text-blue-700 font-medium text-sm">Approval required</p>
             <p className="text-blue-500 text-xs mt-0.5">Your registration will be reviewed by RailTrack admin before you can login. Make sure your IRCTC license number is correct.</p>

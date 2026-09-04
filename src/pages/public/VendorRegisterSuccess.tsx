@@ -24,7 +24,7 @@ const VendorRegisterSuccess = () => {
         )}
 
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8 flex items-start gap-3 text-left">
-          <Clock size={18} className="text-amber-600 flex-shrink-0 mt-0.5" />
+          <Clock size={18} className="text-amber-600 shrink-0 mt-0.5" />
           <div>
             <p className="text-amber-700 font-medium text-sm">What happens next?</p>
             <ul className="text-amber-600 text-xs mt-1 flex flex-col gap-1">
