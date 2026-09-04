@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import Navbar from '../../components/layout/Navbar';
-import { getDashboardStats } from '../../api/admin.api';
+import { getPublicStats } from '../../api/admin.api';
 import { getAllComplaints } from '../../api/admin.api';
 import { TrendingUp, ShieldOff, CheckCircle, AlertTriangle } from 'lucide-react';
 
@@ -12,7 +12,7 @@ const TransparencyDashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const sRes = await getDashboardStats();
+        const sRes = await getPublicStats();
         setStats(sRes.data);
       } catch {
         setStats({ total_vendors: 2847, total_complaints: 14392, resolution_rate: 68, blacklisted_vendors: 12 });

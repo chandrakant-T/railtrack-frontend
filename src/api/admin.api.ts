@@ -7,3 +7,4 @@ export const createStationAdmin = (data) => api.post('/admin/station-admin', dat
 export const updatePriceList = (id, data) => api.put(`/admin/prices/${id}`, data);
 export const approveVendor = (userId: string) =>
   api.put(`/admin/approve-vendor/${userId}`);
+export const getPublicStats = () => api.get('/public/stats');
