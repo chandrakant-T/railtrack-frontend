@@ -18,11 +18,12 @@ export const getStatusColor = (status) => {
   return map[status] || 'bg-gray-100 text-gray-800';
 };
 
-export const getVendorStatusColor = (status) => {
-  const map = {
-    active:      'bg-green-100 text-green-800',
-    suspended:   'bg-yellow-100 text-yellow-800',
-    blacklisted: 'bg-red-100 text-red-800'
+export const getVendorStatusColor = (status: string) => {
+  const map: Record<string, string> = {
+    active:           'bg-green-100 text-green-800',
+    suspended:        'bg-yellow-100 text-yellow-800',
+    blacklisted:      'bg-red-100 text-red-800',
+    pending_approval: 'bg-orange-100 text-orange-800'
   };
   return map[status] || 'bg-gray-100 text-gray-800';
 };

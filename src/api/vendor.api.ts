@@ -1,6 +1,6 @@
 import api from './axios';
 
-export const getAllVendors = (params) => api.get('/vendors', { params });
+export const getAllVendors = (params?: any) => api.get('/vendors', { params });
 export const getVendorById = (id) => api.get(`/vendors/${id}`);
 export const getVendorsByTrain = (trainNumber) => api.get(`/vendors/train/${trainNumber}`);
 export const createVendor = (data) => api.post('/vendors', data);

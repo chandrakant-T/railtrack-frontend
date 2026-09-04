@@ -4,6 +4,7 @@ import {
   getDashboardStats,
   getAllComplaints,
   manageVendorStatus,
+  createStationAdmin,
 } from "../../api/admin.api";
 import { getAllVendors } from "../../api/vendor.api";
 import {
@@ -25,6 +26,36 @@ const SuperAdminDashboard = () => {
     "complaints",
   );
   const [loading, setLoading] = useState(true);
+  const [showCreateAdmin, setShowCreateAdmin] = useState(false);
+  const [adminForm, setAdminForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    station_code: "",
+  });
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
+
+  const handleCreateAdmin = async () => {
+    if (
+      !adminForm.name ||
+      !adminForm.email ||
+      !adminForm.password ||
+      !adminForm.station_code
+    ) {
+      return toast.error("Fill all fields");
+    }
+    setCreatingAdmin(true);
+    try {
+      await createStationAdmin(adminForm);
+      toast.success("Station admin created successfully");
+      setShowCreateAdmin(false);
+      setAdminForm({ name: "", email: "", password: "", station_code: "" });
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || "Failed to create admin");
+    } finally {
+      setCreatingAdmin(false);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -117,6 +148,111 @@ const SuperAdminDashboard = () => {
             </div>
           ))}
         </div>
+
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex gap-2">
+            {(["complaints", "vendors", "pending"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`px-5 py-2 rounded-lg font-medium text-sm capitalize transition-colors ${tab === t ? "bg-[#0B1F3A] text-white" : "bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+              >
+                {t === "pending" ? "Pending Approvals" : t}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => setShowCreateAdmin(true)}
+            className="bg-[#F5A623] text-[#0B1F3A] px-4 py-2 rounded-lg font-medium text-sm hover:bg-amber-400"
+          >
+            + Station Admin
+          </button>
+        </div>
+
+        {/* MOdal */}
+        {showCreateAdmin && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+              <h2 className="font-bold text-[#0B1F3A] text-lg mb-5">
+                Create Station Admin
+              </h2>
+              <div className="flex flex-col gap-4">
+                <div>
+                  <label className="text-sm text-gray-600 mb-1.5 block">
+                    Full name
+                  </label>
+                  <input
+                    value={adminForm.name}
+                    onChange={(e) =>
+                      setAdminForm({ ...adminForm, name: e.target.value })
+                    }
+                    placeholder="Station Master Name"
+                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600 mb-1.5 block">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={adminForm.email}
+                    onChange={(e) =>
+                      setAdminForm({ ...adminForm, email: e.target.value })
+                    }
+                    placeholder="admin@station.com"
+                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600 mb-1.5 block">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    value={adminForm.password}
+                    onChange={(e) =>
+                      setAdminForm({ ...adminForm, password: e.target.value })
+                    }
+                    placeholder="Min 6 characters"
+                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-gray-600 mb-1.5 block">
+                    Station code
+                  </label>
+                  <input
+                    value={adminForm.station_code}
+                    onChange={(e) =>
+                      setAdminForm({
+                        ...adminForm,
+                        station_code: e.target.value.toUpperCase(),
+                      })
+                    }
+                    placeholder="e.g. CSTM, NDLS, BCT"
+                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowCreateAdmin(false)}
+                  className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl font-medium hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateAdmin}
+                  disabled={creatingAdmin}
+                  className="flex-1 bg-[#0B1F3A] text-white py-2.5 rounded-xl font-medium hover:bg-blue-900 disabled:opacity-60"
+                >
+                  {creatingAdmin ? "Creating..." : "Create Admin"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6">

@@ -83,6 +83,22 @@ const PayVendor = () => {
         name: 'RailTrack',
         description: `Payment to ${vendor.full_name}`,
         order_id,
+         config: {
+    display: {
+      blocks: {
+        utib: {
+          name: 'Pay via UPI',
+          instruments: [
+            { method: 'upi' }
+          ]
+        }
+      },
+      sequence: ['block.utib'],
+      preferences: {
+        show_default_blocks: true
+      }
+    }
+  },
         handler: async (response: any) => {
           try {
             const verifyRes = await api.post('/payments/verify', {
