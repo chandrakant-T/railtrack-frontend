@@ -18,7 +18,7 @@ const StationAdminDashboard = () => {
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [resolveNote, setResolveNote] = useState('');
   const [rejectingId, setRejectingId] = useState<string | null>(null);
-const [rejectNote, setRejectNote] = useState('');
+  const [rejectNote, setRejectNote] = useState('');
 
   useEffect(() => {
     fetchData();
@@ -43,7 +43,6 @@ const [rejectNote, setRejectNote] = useState('');
     setUpdating(id);
     try {
       await updateComplaintStatus(id, { status, note: note || '' });
-      // Refresh complaints list to reflect updated logs and status
       fetchData();
       toast.success(`Complaint marked as ${status}`);
     } catch {
@@ -53,19 +52,18 @@ const [rejectNote, setRejectNote] = useState('');
     }
   };
 
- const handleEscalate = async (id: string) => {
-  setUpdating(id);
-  try {
-    // Call dedicated escalation endpoint to trigger RPF/GRP emails
-    await axios.post(`/api/complaints/${id}/escalate`);
-    fetchData();
-    toast.success('Complaint escalated & re-emailed to RPF/GRP');
-  } catch {
-    toast.error('Failed to escalate complaint');
-  } finally {
-    setUpdating(null);
-  }
-};
+  const handleEscalate = async (id: string) => {
+    setUpdating(id);
+    try {
+      await axios.post(`/api/complaints/${id}/escalate`);
+      fetchData();
+      toast.success('Complaint escalated & re-emailed to RPF/GRP');
+    } catch {
+      toast.error('Failed to escalate complaint');
+    } finally {
+      setUpdating(null);
+    }
+  };
 
   const filtered = filter === 'all' ? complaints : complaints.filter(c => c.status === filter);
   const pending = complaints.filter(c => !['resolved', 'rejected'].includes(c.status)).length;
@@ -187,12 +185,12 @@ const [rejectNote, setRejectNote] = useState('');
                         <CheckCircle size={13} /> Resolve
                       </button>
                       <button
-  disabled={updating === c.id}
-  onClick={() => setRejectingId(c.id)}
-  className="flex items-center gap-1.5 bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-100"
->
-  <XCircle size={13} /> Reject
-</button>
+                        disabled={updating === c.id}
+                        onClick={() => setRejectingId(c.id)}
+                        className="flex items-center gap-1.5 bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-60"
+                      >
+                        <XCircle size={13} /> Reject
+                      </button>
                     </div>
                   )}
                 </div>
@@ -202,7 +200,7 @@ const [rejectNote, setRejectNote] = useState('');
         </div>
       </div>
 
-      {/* Resolution confirmation modal */}
+      {/* Resolution Confirmation Modal */}
       {resolvingId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
@@ -240,6 +238,47 @@ const [rejectNote, setRejectNote] = useState('');
                 className="flex-1 bg-green-600 text-white py-2.5 rounded-xl font-medium hover:bg-green-700 disabled:opacity-40"
               >
                 Confirm resolution
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Rejection Confirmation Modal */}
+      {rejectingId && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <h2 className="font-bold text-[#0B1F3A] text-lg mb-2">Reject complaint</h2>
+            <p className="text-gray-500 text-sm mb-4">
+              Please state the clear reason for rejecting this complaint. This reason is logged permanently.
+            </p>
+            <textarea
+              value={rejectNote}
+              onChange={(e) => setRejectNote(e.target.value)}
+              placeholder="Provide reason for rejection e.g. 'Invalid train details provided or unverified claim.'"
+              rows={4}
+              className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#0B1F3A] resize-none mb-4"
+            />
+            <div className="flex gap-3">
+              <button
+                onClick={() => { setRejectingId(null); setRejectNote(''); }}
+                className="flex-1 border border-gray-200 text-gray-600 py-2.5 rounded-xl font-medium hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!rejectNote.trim()}
+                onClick={async () => {
+                  if (!rejectNote.trim()) {
+                    return toast.error('Please provide a reason for rejection');
+                  }
+                  await handleStatus(rejectingId, 'rejected', rejectNote);
+                  setRejectingId(null);
+                  setRejectNote('');
+                }}
+                className="flex-1 bg-red-600 text-white py-2.5 rounded-xl font-medium hover:bg-red-700 disabled:opacity-40"
+              >
+                Confirm rejection
               </button>
             </div>
           </div>
