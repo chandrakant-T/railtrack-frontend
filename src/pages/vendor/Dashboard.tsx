@@ -19,50 +19,57 @@ const VendorDashboard = () => {
   const [editedInventory, setEditedInventory] = useState<Record<string, any>>({});
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch vendor profile linked to this user
-        const vRes = await api.get(`/vendors?user_id=${user?.id}`);
-        const myVendor = vRes.data?.find((v: any) => v.user_id === user?.id);
+  const fetchData = async () => {
+    try {
+      // Step 1 — find vendor profile linked to this user
+      const allVendors = await api.get('/vendors');
+      const myVendor = allVendors.data?.find((v: any) => v.user_id === user?.id);
 
-        if (!myVendor) {
-          toast.error('Vendor profile not found');
-          setLoading(false);
-          return;
-        }
-
-        setVendor(myVendor);
-
-        // Fetch price list and existing inventory in parallel
-        const [plRes, invRes, cRes] = await Promise.all([
-          getPriceList(),
-          getVendorInventory(myVendor.id),
-          api.get(`/complaints/station`)
-        ]);
-
-        setPriceList(plRes.data);
-
-        // Pre-fill editedInventory from existing inventory
-        const invMap: Record<string, any> = {};
-        invRes.data.forEach((item: any) => {
-          invMap[item.price_list_id] = {
-            price: item.listed_price,
-            stock: item.stock_quantity
-          };
-        });
-        setEditedInventory(invMap);
-        setInventory(invRes.data);
-
-        // Filter complaints for this vendor
-        setComplaints(cRes.data?.filter((c: any) => c.vendor_id === myVendor.id) || []);
-      } catch (err) {
-        toast.error('Failed to load dashboard');
-      } finally {
+      if (!myVendor) {
+        toast.error('Vendor profile not found. Contact admin.');
         setLoading(false);
+        return;
       }
-    };
-    if (user) fetchData();
-  }, [user]);
+
+      setVendor(myVendor);
+
+      // Step 2 — fetch price list and inventory separately (not in Promise.all with complaints)
+      const [plRes, invRes] = await Promise.all([
+        getPriceList(),
+        getVendorInventory(myVendor.id)
+      ]);
+
+      setPriceList(plRes.data);
+
+      // Step 3 — pre-fill editedInventory from existing inventory
+      const invMap: Record<string, any> = {};
+      invRes.data.forEach((item: any) => {
+        invMap[item.price_list_id] = {
+          price: item.listed_price,
+          stock: item.stock_quantity
+        };
+      });
+      setEditedInventory(invMap);
+      setInventory(invRes.data);
+
+      // Step 4 — fetch complaints separately so failure doesn't crash everything
+      try {
+        const cRes = await api.get(`/complaints/vendor/${myVendor.id}`);
+        setComplaints(cRes.data || []);
+      } catch {
+        setComplaints([]); // complaints failing is non-critical
+      }
+
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to load dashboard');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (user) fetchData();
+}, [user]);
 
   const handleSaveInventory = async () => {
     if (!vendor) return;
