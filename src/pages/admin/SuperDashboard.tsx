@@ -254,18 +254,6 @@ const SuperAdminDashboard = () => {
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6">
-          {(["complaints", "vendors", "pending"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-5 py-2 rounded-lg font-medium text-sm capitalize transition-colors ${tab === t ? "bg-[#0B1F3A] text-white" : "bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"}`}
-            >
-              {t === "pending" ? "Pending Approvals" : t}
-            </button>
-          ))}
-        </div>
 
         {/* Complaints tab */}
         {tab === "complaints" && (
