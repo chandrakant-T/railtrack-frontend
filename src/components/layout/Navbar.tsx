@@ -54,9 +54,21 @@ const Navbar = () => {
           </div>
         ) : (
           <div className="flex items-center gap-3 ml-4">
-            <Link to="/login" className="hover:text-[#F5A623] transition-colors">Login</Link>
-            <Link to="/register" className="bg-[#F5A623] text-[#0B1F3A] px-3 py-1.5 rounded-lg font-medium hover:bg-amber-400 transition-colors">Register</Link>
-          </div>
+    <Link to="/login" className="hover:text-[#F5A623] transition-colors">Login</Link>
+    <div className="relative group">
+      <button className="bg-[#F5A623] text-[#0B1F3A] px-3 py-1.5 rounded-lg font-medium hover:bg-amber-400 transition-colors">
+        Register ▾
+      </button>
+      <div className="absolute right-0 top-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg p-1 w-44 hidden group-hover:block z-50">
+        <Link to="/register" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
+          Passenger
+        </Link>
+        <Link to="/vendor-register" className="block px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg">
+          Vendor
+        </Link>
+      </div>
+    </div>
+  </div>
         )}
       </div>
 

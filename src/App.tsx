@@ -15,6 +15,8 @@ import StationAdminDashboard from './pages/admin/StationDashboard';
 import SuperAdminDashboard from './pages/admin/SuperDashboard';
 import PayVendor from './pages/public/PayVendor';
 import Receipt from './pages/public/Receipt';
+import VendorRegister from './pages/public/VendorRegister';
+import VendorRegisterSuccess from './pages/public/VendorRegisterSuccess';
 
 
 
@@ -55,6 +57,8 @@ function App() {
           </ProtectedRoute>
         } />
       </Routes>
+      <Route path="/vendor-register" element={<VendorRegister />} />
+<Route path="/vendor-register-success" element={<VendorRegisterSuccess />} />
     </BrowserRouter>
   );
 }

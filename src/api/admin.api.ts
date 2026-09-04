@@ -5,3 +5,5 @@ export const getAllComplaints = (params) => api.get('/admin/complaints', { param
 export const manageVendorStatus = (id, status) => api.put(`/admin/vendors/${id}/status`, { status });
 export const createStationAdmin = (data) => api.post('/admin/station-admin', data);
 export const updatePriceList = (id, data) => api.put(`/admin/prices/${id}`, data);
+export const approveVendor = (userId: string) =>
+  api.put(`/admin/approve-vendor/${userId}`);
