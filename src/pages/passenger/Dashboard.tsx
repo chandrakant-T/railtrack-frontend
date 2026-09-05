@@ -3,10 +3,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/layout/Navbar';
 import { useAuth } from '../../context/AuthContext';
 import { getMyComplaints } from '../../api/complaint.api';
-import { getStatusColor, getPriorityColor, formatDate, formatCurrency } from '../../utils/helpers';
+import { getStatusColor, getPriorityColor, formatDate } from '../../utils/helpers';
 import { Plus, Search, Eye, Zap, CreditCard, AlertCircle, CheckCircle2 } from 'lucide-react';
 import api from '../../api/axios';
-import toast from 'react-hot-toast';
 
 const PassengerDashboard = () => {
   const { user } = useAuth();
@@ -103,8 +102,9 @@ const PassengerDashboard = () => {
             ) : (
               <div className="divide-y divide-gray-100">
                 {complaints.map((c) => {
-                  const hasOvercharge = c.charged_price && c.irctc_price && c.charged_price > c.irctc_price;
-                  const refundAmount = hasOvercharge ? (c.charged_price - c.irctc_price).toFixed(2) : null;
+                  // Strict DB Refund Check: Displays ONLY if backend verified and executed the refund
+                  const isRefunded = c.refund_status === 'refunded' || (c.refund_amount && Number(c.refund_amount) > 0);
+                  const refundAmount = isRefunded ? Number(c.refund_amount).toFixed(2) : null;
 
                   return (
                     <div key={c.id} className="p-6 flex items-start justify-between gap-4 hover:bg-gray-50/50 transition-colors">
@@ -115,7 +115,7 @@ const PassengerDashboard = () => {
                           <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold ${getPriorityColor(c.priority)}`}>{c.priority}</span>
 
                           {/* Autonomous AI Refund Badge */}
-                          {hasOvercharge && (
+                          {isRefunded && (
                             <span className="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                               <Zap size={12} className="fill-emerald-600 text-emerald-600" /> ₹{refundAmount} AI Refunded
                             </span>

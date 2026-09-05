@@ -124,8 +124,8 @@ const StationAdminDashboard = () => {
             <div className="bg-white rounded-xl p-16 text-center text-gray-400 border border-gray-100">No complaints found under this status</div>
           ) : (
             filtered.map((c) => {
-              const isRefunded = c.charged_price && c.irctc_price && c.charged_price > c.irctc_price && c.payment_id;
-              const refundAmount = isRefunded ? (c.charged_price - c.irctc_price).toFixed(2) : null;
+              const isRefunded = c.refund_status === 'refunded' || (c.refund_amount && Number(c.refund_amount) > 0);
+const refundAmount = isRefunded ? Number(c.refund_amount).toFixed(2) : null;
 
               return (
                 <div
