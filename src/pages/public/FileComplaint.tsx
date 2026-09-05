@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/layout/Navbar';
+import api from '../../api/axios';
 import { fileComplaint } from '../../api/complaint.api';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { Mic, Loader2 } from 'lucide-react';
 
 const FileComplaint = () => {
   const [searchParams] = useSearchParams();
@@ -11,6 +13,8 @@ const FileComplaint = () => {
 
   const [type, setType] = useState(searchParams.get('type') || 'overcharging');
   const [loading, setLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+const [aiLoading, setAiLoading] = useState(false);
   const [form, setForm] = useState({
     train_number: searchParams.get('train') || '',
     coach_number: '',
@@ -56,6 +60,69 @@ const FileComplaint = () => {
     }
   };
 
+  const handleVoiceInput = () => {
+  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  
+  if (!SpeechRecognition) {
+    return toast.error('Browser does not support voice recognition. Use Chrome/Edge.');
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = 'hi-IN'; // Supports Hindi + English mix (Hinglish)
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    setIsListening(true);
+    toast.success('Listening... Speak your complaint now');
+  };
+
+  recognition.onresult = async (event: any) => {
+    const transcript = event.results[0][0].transcript;
+    setIsListening(false);
+    setAiLoading(true);
+    toast.loading('AI is analyzing your spoken complaint...');
+
+    try {
+      const res = await api.post('/ai/parse-voice', { transcript });
+      toast.dismiss();
+
+      if (res.data.success) {
+        const aiData = res.data.data;
+        
+        // Auto-fill the existing form state with AI extracted values!
+        setForm((prev) => ({
+          ...prev,
+          train_number: aiData.train_number || prev.train_number,
+          coach_number: aiData.coach_number || prev.coach_number,
+          vendor_name: aiData.vendor_name || prev.vendor_name,
+          item_name: aiData.item_name || prev.item_name,
+          charged_price: aiData.charged_price ? String(aiData.charged_price) : prev.charged_price,
+          description: aiData.summary || transcript
+        }));
+
+        if (aiData.complaint_type) {
+          setType(aiData.complaint_type);
+        }
+
+        toast.success('Form auto-filled by AI!');
+      }
+    } catch {
+      toast.dismiss();
+      toast.error('AI could not parse audio. Please enter details manually.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  recognition.onerror = () => {
+    setIsListening(false);
+    toast.dismiss();
+    toast.error('Voice input cancelled or failed');
+  };
+
+  recognition.start();
+};
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
@@ -85,6 +152,25 @@ const FileComplaint = () => {
             <p>Priority complaint — will be forwarded to Station Master + GRP immediately.</p>
           </div>
         )}
+
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center justify-between">
+  <div>
+    <p className="font-semibold text-[#0B1F3A] text-sm">Speak your complaint (Hindi/English)</p>
+    <p className="text-xs text-gray-500">Click microphone and speak e.g. "Bhaiya ne Rail Neer ke 20 rupey liye coach B3 mein train 12951 mein"</p>
+  </div>
+  <button
+    type="button"
+    onClick={handleVoiceInput}
+    disabled={isListening || aiLoading}
+    className={`p-3 rounded-full text-white font-medium flex items-center gap-2 transition-all ${
+      isListening ? 'bg-red-600 animate-pulse' : 'bg-[#0B1F3A] hover:bg-blue-900'
+    }`}
+  >
+    {aiLoading ? <Loader2 className="animate-spin" size={18} /> : <Mic size={18} />}
+  </button>
+</div>
+
+
 
         <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 flex flex-col gap-5">
           <div className="grid grid-cols-2 gap-4">
