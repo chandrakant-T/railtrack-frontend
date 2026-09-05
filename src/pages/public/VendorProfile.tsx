@@ -129,20 +129,8 @@ const VendorProfile = () => {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3">
-          <Link
-            to={`/complaint?vendor=${vendor.id}&vendorName=${encodeURIComponent(vendor.full_name)}&train=${vendor.train_number}`}
-            className="flex-1 bg-red-50 text-red-700 border border-red-200 py-3 rounded-xl font-semibold text-center hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
-          >
-            <AlertTriangle size={16} /> Report overcharge
-          </Link>
-          <Link
-            to={`/complaint?vendor=${vendor.id}&vendorName=${encodeURIComponent(vendor.full_name)}&train=${vendor.train_number}&type=cash_demand`}
-            className="flex-1 bg-orange-50 text-orange-700 border border-orange-200 py-3 rounded-xl font-semibold text-center hover:bg-orange-100 transition-colors flex items-center justify-center gap-2"
-          >
-            <ShieldAlert size={16} /> Cash demanded
-          </Link>
-          <Link
+<div className="flex gap-3">
+  <Link
     to={`/pay/${vendor.id}`}
     className="flex-1 bg-[#0B1F3A] text-white py-3 rounded-xl font-semibold text-center hover:bg-blue-900 transition-colors flex items-center justify-center gap-2"
   >
@@ -152,9 +140,15 @@ const VendorProfile = () => {
     to={`/complaint?vendor=${vendor.id}&vendorName=${encodeURIComponent(vendor.full_name)}&train=${vendor.train_number}`}
     className="flex-1 bg-red-50 text-red-700 border border-red-200 py-3 rounded-xl font-semibold text-center hover:bg-red-100 transition-colors flex items-center justify-center gap-2"
   >
-    <AlertTriangle size={16} /> Report
+    <AlertTriangle size={16} /> Report overcharge
   </Link>
-        </div>
+  <Link
+    to={`/complaint?vendor=${vendor.id}&vendorName=${encodeURIComponent(vendor.full_name)}&train=${vendor.train_number}&type=cash_demand`}
+    className="flex-1 bg-orange-50 text-orange-700 border border-orange-200 py-3 rounded-xl font-semibold text-center hover:bg-orange-100 transition-colors flex items-center justify-center gap-2"
+  >
+    <ShieldAlert size={16} /> Cash demanded
+  </Link>
+</div>
       </div>
     </div>
   );

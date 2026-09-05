@@ -16,16 +16,17 @@ const FileComplaint = () => {
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
-
-  const rawPaymentId = searchParams.get('paymentId') || searchParams.get('payId') || '';
-  const initialPaymentId = rawPaymentId ? (rawPaymentId.startsWith('pay_') ? rawPaymentId : `pay_${rawPaymentId}`) : '';
-
-  const [paymentId, setPaymentId] = useState(initialPaymentId);
   const [refundStatus, setRefundStatus] = useState<any>(null);
   const [isRefunding, setIsRefunding] = useState(false);
 
+  const rawPaymentId = searchParams.get('paymentId') || searchParams.get('payId') || '';
+  const initialPaymentId = rawPaymentId
+    ? (rawPaymentId.startsWith('pay_') ? rawPaymentId : `pay_${rawPaymentId}`)
+    : '';
+
+  const [paymentId, setPaymentId] = useState(initialPaymentId);
   const [form, setForm] = useState({
-    train_number: searchParams.get('train') || '12951',
+    train_number: searchParams.get('train') || '',
     coach_number: searchParams.get('coach') || '',
     vendor_name: searchParams.get('vendorName') || '',
     vendor_id: searchParams.get('vendor') || '',
@@ -35,12 +36,6 @@ const FileComplaint = () => {
     description: '',
     passenger_phone: ''
   });
-
-  useEffect(() => {
-    if (rawPaymentId) {
-      setPaymentId(rawPaymentId.startsWith('pay_') ? rawPaymentId : `pay_${rawPaymentId}`);
-    }
-  }, [rawPaymentId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -56,46 +51,53 @@ const FileComplaint = () => {
       formattedPaymentId = `pay_${formattedPaymentId}`;
     }
 
-    // Attempt AI refund ONLY if a Payment ID is explicitly provided
-    const hasPaymentId = Boolean(formattedPaymentId);
-    const shouldAttemptRefund = hasPaymentId && type === 'overcharging';
-
     setLoading(true);
-    if (shouldAttemptRefund) {
-      setIsRefunding(true);
-    }
     setRefundStatus(null);
 
     let refundData: any = null;
 
-    try {
-      // 1. Process Autonomous AI Refund if payment ID is attached
-      if (shouldAttemptRefund) {
-        try {
-          const disputeRes = await api.post('/dispute/auto-refund', {
-            paymentId: formattedPaymentId,
-            chargedAmount: parseFloat(form.charged_price) || 0,
-            officialMrp: parseFloat(form.irctc_price) || 0,
-            itemName: form.item_name || 'Food Item'
+    // Attempt AI refund ONLY if payment ID is provided — with strict timeout
+    const hasPaymentId = Boolean(formattedPaymentId);
+    const shouldAttemptRefund = hasPaymentId && type === 'overcharging';
+
+    if (shouldAttemptRefund) {
+      setIsRefunding(true);
+      try {
+        // Strict 12 second timeout — prevents infinite hang
+        const refundPromise = api.post('/dispute/auto-refund', {
+          paymentId: formattedPaymentId,
+          chargedAmount: parseFloat(form.charged_price) || 0,
+          officialMrp: parseFloat(form.irctc_price) || 0,
+          itemName: form.item_name || 'Food Item'
+        });
+
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Refund request timed out')), 12000)
+        );
+
+        const disputeRes: any = await Promise.race([refundPromise, timeoutPromise]);
+
+        if (disputeRes.data?.refunded) {
+          refundData = disputeRes.data;
+          setRefundStatus(disputeRes.data);
+          toast.success(`AI Refund Processed! ₹${disputeRes.data.amountRefunded} credited.`);
+        } else {
+          // Show reason but DON'T block complaint submission
+          toast(disputeRes.data?.reason || 'No refund issued — complaint will still be filed.', {
+            icon: 'ℹ️'
           });
-
-          if (disputeRes.data?.refunded) {
-            refundData = disputeRes.data;
-            setRefundStatus(disputeRes.data);
-            toast.success(`Instant AI Refund Processed! ₹${disputeRes.data.amountRefunded} credited.`);
-          } else {
-            toast.error(disputeRes.data?.reason || 'Payment verification failed: No refund issued.');
-          }
-        } catch (disputeErr: any) {
-          console.error('Auto-refund error:', disputeErr);
-          const errorMsg = disputeErr.response?.data?.reason || disputeErr.response?.data?.error || 'Payment ID not verified on Razorpay Gateway.';
-          toast.error(errorMsg);
-        } finally {
-          setIsRefunding(false); // Always stop refunding spinner
         }
+      } catch (err: any) {
+        // Refund failure should NEVER block complaint submission
+        console.warn('Refund attempt failed (non-blocking):', err.message);
+        toast('Refund check skipped. Complaint will still be filed.', { icon: 'ℹ️' });
+      } finally {
+        setIsRefunding(false);
       }
+    }
 
-      // 2. Submit Complaint to DB with actual refund execution state
+    // Always file the complaint regardless of refund outcome
+    try {
       const payload: any = {
         passenger_id: user?.id || null,
         complaint_type: type,
@@ -120,13 +122,12 @@ const FileComplaint = () => {
 
       setTimeout(() => {
         navigate(user ? '/dashboard' : `/track?ref=${res.data.reference_id}`);
-      }, refundData?.refunded ? 2500 : 1000);
+      }, refundData?.refunded ? 2000 : 800);
 
     } catch (err: any) {
-      console.error('Submit error:', err);
+      console.error('Complaint submit error:', err);
       toast.error(err.response?.data?.error || 'Failed to file complaint');
     } finally {
-      // Guaranteed state cleanup prevents stuck button
       setLoading(false);
       setIsRefunding(false);
     }
@@ -136,7 +137,7 @@ const FileComplaint = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      return toast.error('Browser does not support voice recognition. Use Chrome/Edge.');
+      return toast.error('Voice not supported. Use Chrome or Edge.');
     }
 
     const recognition = new SpeechRecognition();
@@ -170,7 +171,7 @@ const FileComplaint = () => {
           toast.success('Form auto-filled by AI!');
         }
       } catch {
-        toast.error('AI could not parse audio. Please enter details manually.');
+        toast.error('AI could not parse audio. Please fill manually.');
       } finally {
         setAiLoading(false);
       }
@@ -191,7 +192,7 @@ const FileComplaint = () => {
         <h1 className="text-2xl font-bold text-[#0B1F3A] mb-2">File a complaint</h1>
         <p className="text-gray-500 text-sm mb-8">Auto-routed to the nearest upcoming station using live position.</p>
 
-        {/* Complaint Type Selector */}
+        {/* Complaint Type */}
         <div className="flex gap-3 mb-8">
           <button
             type="button"
@@ -209,34 +210,39 @@ const FileComplaint = () => {
           </button>
         </div>
 
-        {/* Vernacular Voice Banner */}
+        {type === 'cash_demand' && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-sm text-red-700 flex items-start gap-2">
+            <ShieldAlert size={16} className="shrink-0 mt-0.5" />
+            <p>Priority complaint — forwarded to Station Master + GRP immediately.</p>
+          </div>
+        )}
+
+        {/* Voice Input */}
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center justify-between">
           <div>
             <p className="font-semibold text-[#0B1F3A] text-sm">Speak your complaint (Hindi/English)</p>
-            <p className="text-xs text-gray-500">Tap microphone to auto-fill details using AI voice input.</p>
+            <p className="text-xs text-gray-500">Tap microphone to auto-fill using AI voice input.</p>
           </div>
           <button
             type="button"
             onClick={handleVoiceInput}
             disabled={isListening || aiLoading}
-            className={`p-3 rounded-full text-white font-medium flex items-center gap-2 transition-all ${
-              isListening ? 'bg-red-600 animate-pulse' : 'bg-[#0B1F3A] hover:bg-blue-900'
-            }`}
+            className={`p-3 rounded-full text-white transition-all ${isListening ? 'bg-red-600 animate-pulse' : 'bg-[#0B1F3A] hover:bg-blue-900'}`}
           >
             {aiLoading ? <Loader2 className="animate-spin" size={18} /> : <Mic size={18} />}
           </button>
         </div>
 
-        {/* AI Refund Issued Banner */}
-        {refundStatus && refundStatus.refunded && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 text-emerald-800 text-sm shadow-sm">
-            <div className="flex items-center gap-2 font-bold text-emerald-900 text-base">
-              <Zap size={18} className="text-emerald-600 fill-emerald-600" />
-              Autonomous AI Refund Issued!
+        {/* AI Refund Banner */}
+        {refundStatus?.refunded && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 text-emerald-800 text-sm">
+            <div className="flex items-center gap-2 font-bold text-emerald-900 mb-1">
+              <Zap size={18} className="text-emerald-600" />
+              AI Refund Processed!
             </div>
-            <p>Amount Refunded: <strong className="text-emerald-950 font-bold">₹{refundStatus.amountRefunded}</strong></p>
+            <p>Amount Refunded: <strong>₹{refundStatus.amountRefunded}</strong></p>
             <p className="text-xs text-emerald-700 mt-1">
-              Refund ID: <code className="bg-emerald-100 px-1 py-0.5 rounded font-mono">{refundStatus.refundId}</code>
+              Refund ID: <code className="bg-emerald-100 px-1 py-0.5 rounded">{refundStatus.refundId}</code>
             </p>
           </div>
         )}
@@ -245,46 +251,44 @@ const FileComplaint = () => {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="text-sm text-gray-600 mb-1.5 block">Train number <span className="text-red-400">*</span></label>
-              <input name="train_number" value={form.train_number} onChange={handleChange} className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
+              <input name="train_number" value={form.train_number} onChange={handleChange} placeholder="e.g. 12951" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
             </div>
             <div>
               <label className="text-sm text-gray-600 mb-1.5 block">Coach number</label>
-              <input name="coach_number" value={form.coach_number} onChange={handleChange} placeholder="e.g. B2" className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
+              <input name="coach_number" value={form.coach_number} onChange={handleChange} placeholder="e.g. B2" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
             </div>
           </div>
 
           <div>
             <label className="text-sm text-gray-600 mb-1.5 block">Vendor name</label>
-            <input name="vendor_name" value={form.vendor_name} onChange={handleChange} className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
+            <input name="vendor_name" value={form.vendor_name} onChange={handleChange} placeholder="Name of vendor" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
           </div>
 
           {type === 'overcharging' && (
             <>
               <div>
                 <label className="text-sm text-gray-600 mb-1.5 block">Item name</label>
-                <input name="item_name" value={form.item_name} onChange={handleChange} className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
+                <input name="item_name" value={form.item_name} onChange={handleChange} placeholder="e.g. Rail Neer water" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-gray-600 mb-1.5 block">IRCTC price (₹)</label>
-                  <input name="irctc_price" type="number" value={form.irctc_price} onChange={handleChange} className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
+                  <input name="irctc_price" type="number" value={form.irctc_price} onChange={handleChange} placeholder="14" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 mb-1.5 block">Price charged (₹)</label>
-                  <input name="charged_price" type="number" value={form.charged_price} onChange={handleChange} className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
+                  <input name="charged_price" type="number" value={form.charged_price} onChange={handleChange} placeholder="20" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
                 </div>
               </div>
-
               <div>
                 <label className="text-sm text-gray-600 mb-1.5 block">
-                  Razorpay Payment ID <span className="text-gray-400 font-normal">(Optional for Instant AI Refund)</span>
+                  Razorpay Payment ID <span className="text-gray-400 font-normal">(optional — for instant AI refund)</span>
                 </label>
                 <input
-                  name="paymentId"
                   value={paymentId}
                   onChange={(e) => setPaymentId(e.target.value)}
                   placeholder="e.g. pay_P1a2B3c4D5e6F7"
-                  className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none font-mono focus:border-[#0B1F3A]"
+                  className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none font-mono focus:border-[#0B1F3A]"
                 />
               </div>
             </>
@@ -292,25 +296,27 @@ const FileComplaint = () => {
 
           <div>
             <label className="text-sm text-gray-600 mb-1.5 block">Description</label>
-            <textarea name="description" value={form.description} onChange={handleChange} rows={3} className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A] resize-none" />
+            <textarea name="description" value={form.description} onChange={handleChange} rows={3} placeholder="Describe what happened..." className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A] resize-none" />
           </div>
 
           <div>
             <label className="text-sm text-gray-600 mb-1.5 block">Your phone number <span className="text-red-400">*</span></label>
-            <input name="passenger_phone" value={form.passenger_phone} onChange={handleChange} placeholder="+91 98765 43210" className="w-full border rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
+            <input name="passenger_phone" value={form.passenger_phone} onChange={handleChange} placeholder="+91 98765 43210" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
+          </div>
+
+          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700">
+            Complaint auto-routed to nearest upcoming station using live train position.
           </div>
 
           <button
             type="submit"
-            disabled={loading || isRefunding}
+            disabled={loading}
             className="bg-[#0B1F3A] text-white py-3.5 rounded-xl font-semibold hover:bg-blue-900 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
           >
             {isRefunding ? (
-              <>
-                <Loader2 className="animate-spin" size={18} /> Analyzing & Processing Refund...
-              </>
+              <><Loader2 className="animate-spin" size={18} /> Checking refund eligibility...</>
             ) : loading ? (
-              'Submitting Complaint...'
+              'Submitting complaint...'
             ) : (
               'Submit complaint →'
             )}
