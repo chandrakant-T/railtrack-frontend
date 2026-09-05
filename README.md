@@ -14,7 +14,7 @@
 
 <br />
 
-> Built for the **Razorpay AI Buildathon** — A full-stack civic tech platform that protects India's 13 million daily railway passengers from food vendor overcharging through AI-powered payments, autonomous refunds, and real-time complaint routing.
+> A full-stack civic tech platform that protects India's 13 million daily railway passengers from food vendor overcharging through AI-powered payments, autonomous refunds, and real-time complaint routing.
 
 </div>
 
