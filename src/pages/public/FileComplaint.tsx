@@ -3,9 +3,8 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/layout/Navbar';
 import api from '../../api/axios';
 import { fileComplaint } from '../../api/complaint.api';
-import { AlertTriangle, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, ShieldAlert, Mic, Loader2, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { Mic, Loader2 } from 'lucide-react';
 
 const FileComplaint = () => {
   const [searchParams] = useSearchParams();
@@ -14,7 +13,13 @@ const FileComplaint = () => {
   const [type, setType] = useState(searchParams.get('type') || 'overcharging');
   const [loading, setLoading] = useState(false);
   const [isListening, setIsListening] = useState(false);
-const [aiLoading, setAiLoading] = useState(false);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  // Agent #2 State Hooks
+  const [paymentId, setPaymentId] = useState('');
+  const [refundStatus, setRefundStatus] = useState<any>(null);
+  const [isRefunding, setIsRefunding] = useState(false);
+
   const [form, setForm] = useState({
     train_number: searchParams.get('train') || '',
     coach_number: '',
@@ -35,8 +40,35 @@ const [aiLoading, setAiLoading] = useState(false);
     e.preventDefault();
     if (!form.train_number) return toast.error('Train number is required');
     if (!form.passenger_phone) return toast.error('Phone number is required for tracking');
+
     setLoading(true);
+    setIsRefunding(true);
+    setRefundStatus(null);
+
     try {
+      // 1. Process Autonomous AI Refund if payment ID is provided for overcharging
+      if (paymentId && type === 'overcharging') {
+        try {
+          const disputeRes = await api.post('/dispute/auto-refund', {
+            paymentId: paymentId.trim(),
+            chargedAmount: parseFloat(form.charged_price) || 0,
+            officialMrp: parseFloat(form.irctc_price) || 15,
+            itemName: form.item_name || 'Food Item'
+          });
+
+          if (disputeRes.data.refunded) {
+            setRefundStatus(disputeRes.data);
+            toast.success(`Instant AI Refund Processed! ₹${disputeRes.data.amountRefunded} credited back.`);
+          } else {
+            toast(`Dispute checked: ${disputeRes.data.reason}`);
+          }
+        } catch (disputeErr: any) {
+          console.error('Auto-refund error:', disputeErr);
+          toast.error(disputeErr.response?.data?.error || 'AI Refund check encountered an issue.');
+        }
+      }
+
+      // 2. Submit complaint payload to database
       const payload: any = {
         complaint_type: type,
         train_number: form.train_number,
@@ -45,83 +77,89 @@ const [aiLoading, setAiLoading] = useState(false);
         description: form.description,
         passenger_phone: form.passenger_phone
       };
+
       if (form.vendor_id) payload.vendor_id = form.vendor_id;
       if (form.item_name) payload.item_name = form.item_name;
       if (form.irctc_price) payload.irctc_price = parseFloat(form.irctc_price);
       if (form.charged_price) payload.charged_price = parseFloat(form.charged_price);
+      if (paymentId) payload.payment_id = paymentId.trim();
 
       const res = await fileComplaint(payload);
       toast.success('Complaint filed successfully!');
-      navigate(`/track?ref=${res.data.reference_id}`);
+
+      // Redirect if no instant refund was rendered, or stay on page briefly to show status
+      if (!refundStatus?.refunded) {
+        navigate(`/track?ref=${res.data.reference_id}`);
+      }
     } catch {
       toast.error('Failed to file complaint');
     } finally {
       setLoading(false);
+      setIsRefunding(false);
     }
   };
 
   const handleVoiceInput = () => {
-  const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-  
-  if (!SpeechRecognition) {
-    return toast.error('Browser does not support voice recognition. Use Chrome/Edge.');
-  }
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
 
-  const recognition = new SpeechRecognition();
-  recognition.lang = 'hi-IN'; // Supports Hindi + English mix (Hinglish)
-  recognition.interimResults = false;
-
-  recognition.onstart = () => {
-    setIsListening(true);
-    toast.success('Listening... Speak your complaint now');
-  };
-
-  recognition.onresult = async (event: any) => {
-    const transcript = event.results[0][0].transcript;
-    setIsListening(false);
-    setAiLoading(true);
-    toast.loading('AI is analyzing your spoken complaint...');
-
-    try {
-      const res = await api.post('/ai/parse-voice', { transcript });
-      toast.dismiss();
-
-      if (res.data.success) {
-        const aiData = res.data.data;
-        
-        // Auto-fill the existing form state with AI extracted values!
-        setForm((prev) => ({
-          ...prev,
-          train_number: aiData.train_number || prev.train_number,
-          coach_number: aiData.coach_number || prev.coach_number,
-          vendor_name: aiData.vendor_name || prev.vendor_name,
-          item_name: aiData.item_name || prev.item_name,
-          charged_price: aiData.charged_price ? String(aiData.charged_price) : prev.charged_price,
-          description: aiData.summary || transcript
-        }));
-
-        if (aiData.complaint_type) {
-          setType(aiData.complaint_type);
-        }
-
-        toast.success('Form auto-filled by AI!');
-      }
-    } catch {
-      toast.dismiss();
-      toast.error('AI could not parse audio. Please enter details manually.');
-    } finally {
-      setAiLoading(false);
+    if (!SpeechRecognition) {
+      return toast.error('Browser does not support voice recognition. Use Chrome/Edge.');
     }
-  };
 
-  recognition.onerror = () => {
-    setIsListening(false);
-    toast.dismiss();
-    toast.error('Voice input cancelled or failed');
-  };
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'hi-IN';
+    recognition.interimResults = false;
 
-  recognition.start();
-};
+    recognition.onstart = () => {
+      setIsListening(true);
+      toast.success('Listening... Speak your complaint now');
+    };
+
+    recognition.onresult = async (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      setIsListening(false);
+      setAiLoading(true);
+      toast.loading('AI is analyzing your spoken complaint...');
+
+      try {
+        const res = await api.post('/ai/parse-voice', { transcript });
+        toast.dismiss();
+
+        if (res.data.success) {
+          const aiData = res.data.data;
+
+          setForm((prev) => ({
+            ...prev,
+            train_number: aiData.train_number || prev.train_number,
+            coach_number: aiData.coach_number || prev.coach_number,
+            vendor_name: aiData.vendor_name || prev.vendor_name,
+            item_name: aiData.item_name || prev.item_name,
+            charged_price: aiData.charged_price ? String(aiData.charged_price) : prev.charged_price,
+            description: aiData.summary || transcript
+          }));
+
+          if (aiData.complaint_type) {
+            setType(aiData.complaint_type);
+          }
+
+          toast.success('Form auto-filled by AI!');
+        }
+      } catch {
+        toast.dismiss();
+        toast.error('AI could not parse audio. Please enter details manually.');
+      } finally {
+        setAiLoading(false);
+      }
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+      toast.dismiss();
+      toast.error('Voice input cancelled or failed');
+    };
+
+    recognition.start();
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -133,12 +171,14 @@ const [aiLoading, setAiLoading] = useState(false);
         {/* Type selector */}
         <div className="flex gap-3 mb-8">
           <button
+            type="button"
             onClick={() => setType('overcharging')}
             className={`flex-1 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 border transition-colors ${type === 'overcharging' ? 'bg-[#0B1F3A] text-[#F5A623] border-[#0B1F3A]' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
           >
             <AlertTriangle size={16} /> Overcharging
           </button>
           <button
+            type="button"
             onClick={() => setType('cash_demand')}
             className={`flex-1 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 border transition-colors ${type === 'cash_demand' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}
           >
@@ -153,25 +193,40 @@ const [aiLoading, setAiLoading] = useState(false);
           </div>
         )}
 
+        {/* Vernacular AI Voice Banner */}
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center justify-between">
-  <div>
-    <p className="font-semibold text-[#0B1F3A] text-sm">Speak your complaint (Hindi/English)</p>
-    <p className="text-xs text-gray-500">Click microphone and speak e.g. "Bhaiya ne Rail Neer ke 20 rupey liye coach B3 mein train 12951 mein"</p>
-  </div>
-  <button
-    type="button"
-    onClick={handleVoiceInput}
-    disabled={isListening || aiLoading}
-    className={`p-3 rounded-full text-white font-medium flex items-center gap-2 transition-all ${
-      isListening ? 'bg-red-600 animate-pulse' : 'bg-[#0B1F3A] hover:bg-blue-900'
-    }`}
-  >
-    {aiLoading ? <Loader2 className="animate-spin" size={18} /> : <Mic size={18} />}
-  </button>
-</div>
+          <div>
+            <p className="font-semibold text-[#0B1F3A] text-sm">Speak your complaint (Hindi/English)</p>
+            <p className="text-xs text-gray-500">Click microphone and speak e.g. "Bhaiya ne Rail Neer ke 20 rupey liye coach B3 mein train 12951 mein"</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleVoiceInput}
+            disabled={isListening || aiLoading}
+            className={`p-3 rounded-full text-white font-medium flex items-center gap-2 transition-all ${
+              isListening ? 'bg-red-600 animate-pulse' : 'bg-[#0B1F3A] hover:bg-blue-900'
+            }`}
+          >
+            {aiLoading ? <Loader2 className="animate-spin" size={18} /> : <Mic size={18} />}
+          </button>
+        </div>
 
+        {/* AI Instant Refund Alert Banner */}
+        {refundStatus && refundStatus.refunded && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-6 text-emerald-800 text-sm flex flex-col gap-1.5 shadow-sm">
+            <div className="flex items-center gap-2 font-bold text-emerald-900 text-base">
+              <Zap size={18} className="text-emerald-600 fill-emerald-600" />
+              Autonomous AI Refund Issued!
+            </div>
+            <p>Amount Refunded: <strong className="text-emerald-950 font-bold">₹{refundStatus.amountRefunded}</strong></p>
+            <p className="text-xs text-emerald-700">
+              Refund Transaction ID: <code className="bg-emerald-100 px-1.5 py-0.5 rounded text-emerald-900 font-mono">{refundStatus.refundId}</code>
+            </p>
+            <p className="text-xs text-emerald-600 mt-0.5">AI Analysis: {refundStatus.reason}</p>
+          </div>
+        )}
 
-
+        {/* Main Complaint Form */}
         <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 flex flex-col gap-5">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -198,12 +253,29 @@ const [aiLoading, setAiLoading] = useState(false);
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-gray-600 mb-1.5 block">IRCTC price (₹)</label>
-                  <input name="irctc_price" type="number" value={form.irctc_price} onChange={handleChange} placeholder="14" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
+                  <input name="irctc_price" type="number" value={form.irctc_price} onChange={handleChange} placeholder="15" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 mb-1.5 block">Price charged (₹)</label>
                   <input name="charged_price" type="number" value={form.charged_price} onChange={handleChange} placeholder="20" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
                 </div>
+              </div>
+
+              {/* Razorpay Payment ID Field for Instant Refund */}
+              <div>
+                <label className="text-sm text-gray-600 mb-1.5 block">
+                  Razorpay Payment ID <span className="text-gray-400 font-normal">(Optional for Instant AI Refund)</span>
+                </label>
+                <input
+                  name="paymentId"
+                  value={paymentId}
+                  onChange={(e) => setPaymentId(e.target.value)}
+                  placeholder="e.g. pay_P1a2B3c4D5e6F7"
+                  className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]"
+                />
+                <p className="text-xs text-gray-400 mt-1">
+                  Providing your payment ID allows our AI agent to verify overcharging & trigger instant refunds to your UPI.
+                </p>
               </div>
             </>
           )}
@@ -223,8 +295,20 @@ const [aiLoading, setAiLoading] = useState(false);
             Your complaint will be auto-routed to the nearest upcoming station using live train position.
           </div>
 
-          <button type="submit" disabled={loading} className="bg-[#0B1F3A] text-white py-3 rounded-xl font-semibold hover:bg-blue-900 transition-colors disabled:opacity-60">
-            {loading ? 'Submitting...' : 'Submit complaint →'}
+          <button
+            type="submit"
+            disabled={loading || isRefunding}
+            className="bg-[#0B1F3A] text-white py-3 rounded-xl font-semibold hover:bg-blue-900 transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            {isRefunding ? (
+              <>
+                <Loader2 className="animate-spin" size={18} /> Analyzing & Processing Refund...
+              </>
+            ) : loading ? (
+              'Submitting...'
+            ) : (
+              'Submit complaint →'
+            )}
           </button>
         </form>
       </div>
