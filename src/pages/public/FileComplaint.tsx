@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/layout/Navbar';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../api/axios';
 import { fileComplaint } from '../../api/complaint.api';
 import { AlertTriangle, ShieldAlert, Mic, Loader2, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const FileComplaint = () => {
+  const { user } = useAuth(); // 👈 Fetches logged-in user ID
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -45,25 +47,31 @@ const FileComplaint = () => {
     setIsRefunding(true);
     setRefundStatus(null);
 
+    // Auto-format Payment ID so Razorpay doesn't reject it (e.g., 'J6OhH...' -> 'pay_J6OhH...')
+    let formattedPaymentId = paymentId.trim();
+    if (formattedPaymentId && !formattedPaymentId.startsWith('pay_')) {
+      formattedPaymentId = `pay_${formattedPaymentId}`;
+    }
+
     let wasRefunded = false;
 
     try {
-      // 1. Process Autonomous AI Refund if payment ID is provided for overcharging
-      if (paymentId && type === 'overcharging') {
+      // 1. Trigger AI Auto-Refund check if payment ID is provided for overcharging
+      if (formattedPaymentId && type === 'overcharging') {
         try {
           const disputeRes = await api.post('/dispute/auto-refund', {
-            paymentId: paymentId.trim(),
+            paymentId: formattedPaymentId,
             chargedAmount: parseFloat(form.charged_price) || 0,
             officialMrp: parseFloat(form.irctc_price) || 15,
             itemName: form.item_name || 'Food Item'
           });
 
-          if (disputeRes.data.refunded) {
+          if (disputeRes.data?.refunded) {
             wasRefunded = true;
             setRefundStatus(disputeRes.data);
             toast.success(`Instant AI Refund Processed! ₹${disputeRes.data.amountRefunded} credited back.`);
           } else {
-            toast(`Dispute checked: ${disputeRes.data.reason}`);
+            toast(disputeRes.data?.reason || 'Dispute checked: No overcharge detected.');
           }
         } catch (disputeErr: any) {
           console.error('Auto-refund error:', disputeErr);
@@ -71,8 +79,9 @@ const FileComplaint = () => {
         }
       }
 
-      // 2. Submit complaint payload to database
+      // 2. Submit complaint payload with passenger_id attached
       const payload: any = {
+        passenger_id: user?.id || null, // 👈 FIX: Binds complaint to dashboard account
         complaint_type: type,
         train_number: form.train_number,
         coach_number: form.coach_number,
@@ -85,25 +94,23 @@ const FileComplaint = () => {
       if (form.item_name) payload.item_name = form.item_name;
       if (form.irctc_price) payload.irctc_price = parseFloat(form.irctc_price);
       if (form.charged_price) payload.charged_price = parseFloat(form.charged_price);
-      if (paymentId) payload.payment_id = paymentId.trim();
+      if (formattedPaymentId) payload.payment_id = formattedPaymentId;
 
       const res = await fileComplaint(payload);
       toast.success('Complaint filed successfully!');
 
-      // Reset loading states so button UI doesn't remain stuck
+      // Reset UI loading states immediately
       setLoading(false);
       setIsRefunding(false);
 
-      // 3. Delay redirect if a refund occurred so user can inspect the success banner
-      if (wasRefunded) {
-        setTimeout(() => {
-          navigate(`/track?ref=${res.data.reference_id}`);
-        }, 3500);
-      } else {
-        navigate(`/track?ref=${res.data.reference_id}`);
-      }
-    } catch {
-      toast.error('Failed to file complaint');
+      // Redirect user to track page or dashboard
+      setTimeout(() => {
+        navigate(user ? '/dashboard' : `/track?ref=${res.data.reference_id}`);
+      }, wasRefunded ? 3000 : 1000);
+
+    } catch (err: any) {
+      console.error('Submit error:', err);
+      toast.error(err.response?.data?.error || 'Failed to file complaint');
       setLoading(false);
       setIsRefunding(false);
     }
@@ -257,7 +264,7 @@ const FileComplaint = () => {
           {type === 'overcharging' && (
             <>
               <div>
-                <label className="text-sm text-gray-600 mb-1.5 block">Item name <span className="text-gray-400 font-normal">(Optional if Payment ID provided)</span></label>
+                <label className="text-sm text-gray-600 mb-1.5 block">Item name</label>
                 <input name="item_name" value={form.item_name} onChange={handleChange} placeholder="e.g. Rail Neer water" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -271,7 +278,7 @@ const FileComplaint = () => {
                 </div>
               </div>
 
-              {/* Razorpay Payment ID Field for Instant Refund */}
+              {/* Razorpay Payment ID Field */}
               <div>
                 <label className="text-sm text-gray-600 mb-1.5 block">
                   Razorpay Payment ID <span className="text-gray-400 font-normal">(Optional for Instant AI Refund)</span>
