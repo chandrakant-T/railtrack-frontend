@@ -13,24 +13,26 @@ const Receipt = () => {
     </div>
   );
 
-  const { receipt_id, vendor_name, items, total, payment_id } = state;
+  const { receipt_id, vendor_name, items, total, payment_id, train_number } = state;
 
-  // Ensure payment ID strictly begins with 'pay_' for SDK & backend AI agent compatibility
   const rawId = payment_id || receipt_id || 'UNKNOWN';
   const formattedPaymentId = rawId.startsWith('pay_') ? rawId : `pay_${rawId}`;
 
-  // Extract primary item name for pre-filling complaint form
-  const primaryItemName = items?.map((i: any) => i.name).join(', ') || 'Food Item';
+  // 1. Calculate sum of official MRPs across all items in receipt
+  const totalOfficialMrp = items?.reduce((sum: number, item: any) => {
+    const itemMrp = item.irctc_mrp || item.price || 0;
+    return sum + (itemMrp * (item.qty || 1));
+  }, 0) || total;
 
-  // Build route string with auto-fill URL search params for FileComplaint page
-  const reportUrl = `/complaint?paymentId=${encodeURIComponent(formattedPaymentId)}&amount=${total}&vendorName=${encodeURIComponent(vendor_name || '')}&item=${encodeURIComponent(primaryItemName)}`;
+  const primaryItemNames = items?.map((i: any) => `${i.name} (x${i.qty})`).join(', ') || 'Food Items';
+
+  // 2. Pass accurate total MRP & total charged amount to Complaint page
+  const reportUrl = `/complaint?paymentId=${encodeURIComponent(formattedPaymentId)}&amount=${total}&mrp=${totalOfficialMrp}&vendorName=${encodeURIComponent(vendor_name || '')}&item=${encodeURIComponent(primaryItemNames)}&train=${train_number || '12951'}`;
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       <div className="max-w-md mx-auto px-4 py-10">
-
-        {/* Success header */}
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle size={32} className="text-green-600" />
@@ -39,7 +41,6 @@ const Receipt = () => {
           <p className="text-gray-500 text-sm mt-1">Your receipt has been generated</p>
         </div>
 
-        {/* Receipt card */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
           <div className="text-center mb-6">
             <p className="text-xs text-gray-400 mb-1">Receipt ID</p>
@@ -49,7 +50,7 @@ const Receipt = () => {
           <div className="flex flex-col gap-2 text-sm mb-6">
             <div className="flex justify-between py-1.5 border-b border-gray-50">
               <span className="text-gray-400">Vendor</span>
-              <span className="font-medium">{vendor_name}</span>
+              <span className="font-medium">{vendor_name || 'Vendor'}</span>
             </div>
             <div className="flex justify-between py-1.5 border-b border-gray-50">
               <span className="text-gray-400">Payment ID</span>
@@ -74,15 +75,13 @@ const Receipt = () => {
           </div>
         </div>
 
-        {/* Overcharge notice */}
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-start gap-3">
           <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
           <p className="text-amber-700 text-sm">
-            If the amount charged differs from this receipt or official IRCTC prices, file an overcharging complaint immediately for an instant AI refund.
+            If the amount charged differs from this receipt or official IRCTC prices, file an overcharging complaint immediately.
           </p>
         </div>
 
-        {/* Action buttons */}
         <div className="flex gap-3">
           <Link
             to={reportUrl}
@@ -92,10 +91,10 @@ const Receipt = () => {
             Report issue
           </Link>
           <Link
-            to="/"
+            to="/dashboard"
             className="flex-1 bg-[#0B1F3A] text-white py-3 rounded-xl text-sm font-semibold text-center hover:bg-blue-900 transition-colors"
           >
-            Back to home
+            My Dashboard
           </Link>
         </div>
       </div>
