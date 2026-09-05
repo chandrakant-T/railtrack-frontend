@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import Navbar from '../../components/layout/Navbar';
-import { getAllVendors } from '../../api/vendor.api';
 import { getVendorInventory, updateVendorInventory, getPriceList } from '../../api/inventory.api';
 import { formatCurrency, getStatusColor, formatDate } from '../../utils/helpers';
-import { Package, QrCode, AlertTriangle, Save } from 'lucide-react';
+import { Package, QrCode, AlertTriangle, Save, ShieldAlert, Lock, CreditCard } from 'lucide-react';
 import api from '../../api/axios';
 import toast from 'react-hot-toast';
 
@@ -19,57 +18,57 @@ const VendorDashboard = () => {
   const [editedInventory, setEditedInventory] = useState<Record<string, any>>({});
 
   useEffect(() => {
-  const fetchData = async () => {
-    try {
-      // Step 1 — find vendor profile linked to this user
-      const allVendors = await api.get('/vendors');
-      const myVendor = allVendors.data?.find((v: any) => v.user_id === user?.id);
-
-      if (!myVendor) {
-        toast.error('Vendor profile not found. Contact admin.');
-        setLoading(false);
-        return;
-      }
-
-      setVendor(myVendor);
-
-      // Step 2 — fetch price list and inventory separately (not in Promise.all with complaints)
-      const [plRes, invRes] = await Promise.all([
-        getPriceList(),
-        getVendorInventory(myVendor.id)
-      ]);
-
-      setPriceList(plRes.data);
-
-      // Step 3 — pre-fill editedInventory from existing inventory
-      const invMap: Record<string, any> = {};
-      invRes.data.forEach((item: any) => {
-        invMap[item.price_list_id] = {
-          price: item.listed_price,
-          stock: item.stock_quantity
-        };
-      });
-      setEditedInventory(invMap);
-      setInventory(invRes.data);
-
-      // Step 4 — fetch complaints separately so failure doesn't crash everything
+    const fetchData = async () => {
       try {
-        const cRes = await api.get(`/complaints/vendor/${myVendor.id}`);
-        setComplaints(cRes.data || []);
-      } catch {
-        setComplaints([]); // complaints failing is non-critical
+        // Step 1 — Find vendor profile linked to this user
+        const allVendors = await api.get('/vendors');
+        const myVendor = allVendors.data?.find((v: any) => v.user_id === user?.id);
+
+        if (!myVendor) {
+          toast.error('Vendor profile not found. Contact admin.');
+          setLoading(false);
+          return;
+        }
+
+        setVendor(myVendor);
+
+        // Step 2 — Fetch price list and inventory separately
+        const [plRes, invRes] = await Promise.all([
+          getPriceList(),
+          getVendorInventory(myVendor.id)
+        ]);
+
+        setPriceList(plRes.data);
+
+        // Step 3 — Pre-fill editedInventory from existing inventory
+        const invMap: Record<string, any> = {};
+        invRes.data.forEach((item: any) => {
+          invMap[item.price_list_id] = {
+            price: item.listed_price,
+            stock: item.stock_quantity
+          };
+        });
+        setEditedInventory(invMap);
+        setInventory(invRes.data);
+
+        // Step 4 — Fetch complaints filed against this vendor
+        try {
+          const cRes = await api.get(`/complaints/vendor/${myVendor.id}`);
+          setComplaints(cRes.data || []);
+        } catch {
+          setComplaints([]);
+        }
+
+      } catch (err) {
+        console.error('Error loading vendor dashboard:', err);
+        toast.error('Failed to load dashboard');
+      } finally {
+        setLoading(false);
       }
+    };
 
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to load dashboard');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (user) fetchData();
-}, [user]);
+    if (user) fetchData();
+  }, [user]);
 
   const handleSaveInventory = async () => {
     if (!vendor) return;
@@ -79,7 +78,7 @@ const VendorDashboard = () => {
         price_list_id: item.id,
         listed_price: parseFloat(editedInventory[item.id]?.price ?? item.irctc_mrp),
         stock_quantity: parseInt(editedInventory[item.id]?.stock ?? 0)
-      })).filter(item => item.stock_quantity > 0); // only save items with stock > 0
+      })).filter(item => item.stock_quantity > 0);
 
       await updateVendorInventory(vendor.id, items);
       toast.success('Inventory saved successfully!');
@@ -105,7 +104,7 @@ const VendorDashboard = () => {
   if (loading) return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-      <div className="flex items-center justify-center py-32 text-gray-400">Loading dashboard...</div>
+      <div className="flex items-center justify-center py-32 text-gray-400">Loading vendor dashboard...</div>
     </div>
   );
 
@@ -116,6 +115,8 @@ const VendorDashboard = () => {
     </div>
   );
 
+  const isFrozen = vendor.status === 'suspended' || vendor.status === 'blacklisted';
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
@@ -124,25 +125,42 @@ const VendorDashboard = () => {
         {/* Header */}
         <div className="flex items-center gap-4 mb-8">
           <div className="w-12 h-12 rounded-full bg-[#0B1F3A] text-[#F5A623] flex items-center justify-center font-bold text-lg">
-            {vendor.full_name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+            {vendor.full_name?.split(' ').map((n: string) => n[0]).join('').slice(0, 2) || 'VN'}
           </div>
           <div>
             <h1 className="text-2xl font-bold text-[#0B1F3A]">{vendor.full_name}</h1>
             <p className="text-gray-500 text-sm">
-              {vendor.vendor_code} · Train {vendor.train_number} · Coach {vendor.coach_number}
+              {vendor.vendor_code} · Train {vendor.train_number} · Coach {vendor.coach_number || 'All'}
             </p>
           </div>
-          <span className="ml-auto bg-green-100 text-green-700 text-xs px-3 py-1.5 rounded-full font-medium">
+          <span className={`ml-auto text-xs px-3 py-1.5 rounded-full font-bold uppercase ${
+            isFrozen ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-green-100 text-green-700 border border-green-200'
+          }`}>
             {vendor.status}
           </span>
         </div>
 
+        {/* Settlement Freeze Banner */}
+        {isFrozen && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-8 text-red-800 text-sm flex items-start gap-3 shadow-sm">
+            <ShieldAlert size={22} className="text-red-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-red-900 text-base flex items-center gap-1.5">
+                <Lock size={16} /> Razorpay Payouts & Settlement Frozen
+              </p>
+              <p className="text-xs text-red-700 mt-1 leading-relaxed">
+                Your account payouts have been locked by the AI Sentinel due to flagged overcharging disputes or priority complaints. Contact your Station Master or Railway Divisional Authority for audit and clearance.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-8">
           {[
-            { label: 'Rating', value: vendor.rating, color: 'text-green-600' },
+            { label: 'Rating', value: vendor.rating || '4.8 ⭐', color: 'text-green-600' },
             { label: 'Items in stock', value: inventory.length, color: 'text-[#0B1F3A]' },
-            { label: 'Complaints', value: vendor.complaint_count, color: 'text-red-600' }
+            { label: 'Complaints', value: vendor.complaint_count || complaints.length, color: complaints.length > 3 ? 'text-red-600' : 'text-gray-700' }
           ].map((s) => (
             <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5 text-center">
               <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
@@ -169,13 +187,16 @@ const VendorDashboard = () => {
             <div className="flex-1">
               <p className="font-semibold text-[#0B1F3A] mb-1">Show this to passengers</p>
               <p className="text-gray-500 text-sm mb-1">Passengers scan this QR → select items → pay via UPI.</p>
-              <p className="text-gray-400 text-xs mb-4 break-all">{paymentUrl}</p>
+              <p className="text-gray-400 text-xs mb-4 break-all font-mono">{paymentUrl}</p>
               <div className="flex gap-2 flex-wrap">
-                <span className="bg-green-50 text-green-700 text-xs px-3 py-1.5 rounded-lg font-medium">QR Active</span>
+                <span className={`text-xs px-3 py-1.5 rounded-lg font-medium ${isFrozen ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-700'}`}>
+                  {isFrozen ? 'QR Disabled (Frozen)' : 'QR Active'}
+                </span>
                 <a
                   href={qrUrl}
                   download="railtrack-qr.png"
                   target="_blank"
+                  rel="noreferrer"
                   className="border border-gray-200 text-gray-600 text-xs px-3 py-1.5 rounded-lg hover:bg-gray-50"
                 >
                   Download QR
@@ -196,7 +217,7 @@ const VendorDashboard = () => {
 
         {/* Inventory Manager */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden mb-6">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <Package size={16} className="text-gray-400" />
               <h2 className="font-semibold text-[#0B1F3A]">Manage inventory</h2>
@@ -218,6 +239,7 @@ const VendorDashboard = () => {
                 const myPrice = editedInventory[item.id]?.price ?? item.irctc_mrp;
                 const myStock = editedInventory[item.id]?.stock ?? 0;
                 const isFlagged = parseFloat(myPrice) > parseFloat(item.irctc_mrp);
+
                 return (
                   <tr key={item.id} className="border-t border-gray-50">
                     <td className="px-6 py-3 text-gray-800">{item.item_name}</td>
@@ -263,7 +285,7 @@ const VendorDashboard = () => {
           </div>
         </div>
 
-        {/* Recent complaints */}
+        {/* Recent Complaints */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 flex items-center gap-2">
             <AlertTriangle size={16} className="text-gray-400" />
@@ -276,14 +298,22 @@ const VendorDashboard = () => {
           ) : (
             <div className="divide-y divide-gray-50">
               {complaints.map((c: any) => (
-                <div key={c.id} className="px-6 py-4">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium text-sm">{c.reference_id}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getStatusColor(c.status)}`}>
-                      {c.status}
-                    </span>
+                <div key={c.id} className="px-6 py-4 flex items-center justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-medium text-sm text-[#0B1F3A]">{c.reference_id}</span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getStatusColor(c.status)}`}>
+                        {c.status}
+                      </span>
+                    </div>
+                    <p className="text-gray-500 text-xs capitalize">{c.complaint_type?.replace('_', ' ')} · {formatDate(c.filed_at)}</p>
+                    {c.payment_id && (
+                      <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1 font-mono">
+                        <CreditCard size={11} /> Payment ID: {c.payment_id}
+                      </p>
+                    )}
                   </div>
-                  <p className="text-gray-500 text-xs">{c.complaint_type?.replace('_', ' ')} · {formatDate(c.filed_at)}</p>
+                  <span className="text-xs text-gray-400 font-mono">Train {c.train_number}</span>
                 </div>
               ))}
             </div>

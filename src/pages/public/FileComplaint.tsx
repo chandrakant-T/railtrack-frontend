@@ -45,6 +45,8 @@ const FileComplaint = () => {
     setIsRefunding(true);
     setRefundStatus(null);
 
+    let wasRefunded = false;
+
     try {
       // 1. Process Autonomous AI Refund if payment ID is provided for overcharging
       if (paymentId && type === 'overcharging') {
@@ -57,6 +59,7 @@ const FileComplaint = () => {
           });
 
           if (disputeRes.data.refunded) {
+            wasRefunded = true;
             setRefundStatus(disputeRes.data);
             toast.success(`Instant AI Refund Processed! ₹${disputeRes.data.amountRefunded} credited back.`);
           } else {
@@ -87,13 +90,20 @@ const FileComplaint = () => {
       const res = await fileComplaint(payload);
       toast.success('Complaint filed successfully!');
 
-      // Redirect if no instant refund was rendered, or stay on page briefly to show status
-      if (!refundStatus?.refunded) {
+      // Reset loading states so button UI doesn't remain stuck
+      setLoading(false);
+      setIsRefunding(false);
+
+      // 3. Delay redirect if a refund occurred so user can inspect the success banner
+      if (wasRefunded) {
+        setTimeout(() => {
+          navigate(`/track?ref=${res.data.reference_id}`);
+        }, 3500);
+      } else {
         navigate(`/track?ref=${res.data.reference_id}`);
       }
     } catch {
       toast.error('Failed to file complaint');
-    } finally {
       setLoading(false);
       setIsRefunding(false);
     }
@@ -247,7 +257,7 @@ const FileComplaint = () => {
           {type === 'overcharging' && (
             <>
               <div>
-                <label className="text-sm text-gray-600 mb-1.5 block">Item name</label>
+                <label className="text-sm text-gray-600 mb-1.5 block">Item name <span className="text-gray-400 font-normal">(Optional if Payment ID provided)</span></label>
                 <input name="item_name" value={form.item_name} onChange={handleChange} placeholder="e.g. Rail Neer water" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
               </div>
               <div className="grid grid-cols-2 gap-4">

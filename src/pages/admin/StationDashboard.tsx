@@ -4,12 +4,13 @@ import Navbar from '../../components/layout/Navbar';
 import { getStationComplaints, updateComplaintStatus } from '../../api/complaint.api';
 import { getDashboardStats } from '../../api/admin.api';
 import { getStatusColor, getPriorityColor, formatDate } from '../../utils/helpers';
-import { CheckCircle, XCircle, AlertTriangle, Clock } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, Clock, Zap, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import axios from 'axios';
 
 const StationAdminDashboard = () => {
   const { user } = useAuth();
+  const stationCode = (user as (typeof user & { station_code?: string }) | null)?.station_code;
   const [complaints, setComplaints] = useState<any[]>([]);
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -33,7 +34,7 @@ const StationAdminDashboard = () => {
       setComplaints(cRes.data);
       setStats(sRes.data);
     } catch {
-      toast.error('Failed to load data');
+      toast.error('Failed to load station data');
     } finally {
       setLoading(false);
     }
@@ -43,10 +44,10 @@ const StationAdminDashboard = () => {
     setUpdating(id);
     try {
       await updateComplaintStatus(id, { status, note: note || '' });
-      fetchData();
+      await fetchData();
       toast.success(`Complaint marked as ${status}`);
     } catch {
-      toast.error('Failed to update status');
+      toast.error('Failed to update complaint status');
     } finally {
       setUpdating(null);
     }
@@ -56,7 +57,7 @@ const StationAdminDashboard = () => {
     setUpdating(id);
     try {
       await axios.post(`/api/complaints/${id}/escalate`);
-      fetchData();
+      await fetchData();
       toast.success('Complaint escalated & re-emailed to RPF/GRP');
     } catch {
       toast.error('Failed to escalate complaint');
@@ -73,9 +74,16 @@ const StationAdminDashboard = () => {
     <div className="min-h-screen bg-gray-50">
       <Navbar />
       <div className="max-w-5xl mx-auto px-4 py-10">
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold text-[#0B1F3A]">Station Admin Dashboard</h1>
-          <p className="text-gray-500 text-sm mt-1">Manage incoming complaints for your station</p>
+        <div className="mb-8 flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-[#0B1F3A]">Station Admin Dashboard</h1>
+            <p className="text-gray-500 text-sm mt-1">Manage and audit incoming station complaints</p>
+          </div>
+          {stationCode && (
+            <span className="bg-[#0B1F3A] text-[#F5A623] px-3 py-1.5 rounded-lg text-xs font-bold font-mono">
+              STATION: {stationCode}
+            </span>
+          )}
         </div>
 
         {/* Stats */}
@@ -114,93 +122,114 @@ const StationAdminDashboard = () => {
           ) : filtered.length === 0 ? (
             <div className="bg-white rounded-xl p-16 text-center text-gray-400">No complaints found</div>
           ) : (
-            filtered.map((c) => (
-              <div
-                key={c.id}
-                className={`bg-white rounded-xl border shadow-sm p-5 ${c.priority === 'high' ? 'border-l-4 border-l-red-500 border-gray-100' : 'border-gray-100'}`}
-              >
-                <div className="flex items-start justify-between gap-4 flex-wrap">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-2">
-                      <span className="font-semibold text-[#0B1F3A]">{c.reference_id}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getStatusColor(c.status)}`}>{c.status}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPriorityColor(c.priority)}`}>{c.priority}</span>
-                      {c.complaint_type === 'cash_demand' && (
-                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">Cash demand</span>
+            filtered.map((c) => {
+              const isRefunded = c.charged_price && c.irctc_price && c.charged_price > c.irctc_price && c.payment_id;
+              const refundAmount = isRefunded ? (c.charged_price - c.irctc_price).toFixed(2) : null;
+
+              return (
+                <div
+                  key={c.id}
+                  className={`bg-white rounded-xl border shadow-sm p-5 ${c.priority === 'high' ? 'border-l-4 border-l-red-500 border-gray-100' : 'border-gray-100'}`}
+                >
+                  <div className="flex items-start justify-between gap-4 flex-wrap">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-2">
+                        <span className="font-semibold text-[#0B1F3A] text-sm">{c.reference_id}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getStatusColor(c.status)}`}>{c.status}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${getPriorityColor(c.priority)}`}>{c.priority}</span>
+                        {c.complaint_type === 'cash_demand' && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">Cash demand</span>
+                        )}
+
+                        {/* Autonomous AI Refund Badge */}
+                        {isRefunded && (
+                          <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            <Zap size={12} className="fill-emerald-600 text-emerald-600" /> ₹{refundAmount} AI Refunded
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-gray-600 text-sm">
+                        <span className="font-medium">Train:</span> {c.train_number}
+                        {c.coach_number && <> · <span className="font-medium">Coach:</span> {c.coach_number}</>}
+                        {c.vendor_name && <> · <span className="font-medium">Vendor:</span> {c.vendor_name}</>}
+                      </p>
+
+                      {c.item_name && (
+                        <p className="text-gray-500 text-sm mt-0.5">
+                          {c.item_name} — IRCTC ₹{c.irctc_price || 'N/A'} · Charged ₹{c.charged_price || 'N/A'}
+                        </p>
+                      )}
+
+                      {c.payment_id && (
+                        <p className="text-[11px] text-gray-400 mt-1 flex items-center gap-1 font-mono">
+                          <CreditCard size={12} /> Payment ID: <span className="bg-gray-100 text-gray-700 px-1 rounded">{c.payment_id}</span>
+                        </p>
+                      )}
+
+                      {c.description && <p className="text-gray-500 text-sm mt-1 italic">"{c.description}"</p>}
+                      <p className="text-gray-400 text-xs mt-2">{formatDate(c.filed_at)}</p>
+
+                      {/* Audit trail */}
+                      {c.complaint_logs && c.complaint_logs.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-50">
+                          <p className="text-xs text-gray-400 mb-1 font-medium">Audit trail:</p>
+                          {c.complaint_logs.map((log: any, i: number) => (
+                            <p key={i} className="text-xs text-gray-400">
+                              → {log.old_status || 'submitted'} to <span className="font-medium text-gray-600">{log.new_status}</span>
+                              {log.note && ` — "${log.note}"`}
+                              · {formatDate(log.updated_at)}
+                            </p>
+                          ))}
+                        </div>
                       )}
                     </div>
-                    <p className="text-gray-600 text-sm">
-                      <span className="font-medium">Train:</span> {c.train_number}
-                      {c.coach_number && <> · <span className="font-medium">Coach:</span> {c.coach_number}</>}
-                      {c.vendor_name && <> · <span className="font-medium">Vendor:</span> {c.vendor_name}</>}
-                    </p>
-                    {c.item_name && (
-                      <p className="text-gray-500 text-sm mt-0.5">
-                        {c.item_name} — IRCTC ₹{c.irctc_price} · Charged ₹{c.charged_price}
-                      </p>
-                    )}
-                    {c.description && <p className="text-gray-400 text-sm mt-1 italic">"{c.description}"</p>}
-                    <p className="text-gray-400 text-xs mt-2">{formatDate(c.filed_at)}</p>
 
-                    {/* Audit trail */}
-                    {c.complaint_logs && c.complaint_logs.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-50">
-                        <p className="text-xs text-gray-400 mb-1 font-medium">Audit trail:</p>
-                        {c.complaint_logs.map((log: any, i: number) => (
-                          <p key={i} className="text-xs text-gray-400">
-                            → {log.old_status} to {log.new_status}
-                            {log.note && ` — "${log.note}"`}
-                            · {formatDate(log.updated_at)}
-                          </p>
-                        ))}
+                    {!['resolved', 'rejected'].includes(c.status) && (
+                      <div className="flex gap-2 shrink-0 flex-wrap">
+                        {(c.status === 'submitted' || c.status === 'forwarded') && (
+                          <button
+                            disabled={updating === c.id}
+                            onClick={() => handleStatus(c.id, 'acknowledged')}
+                            className="flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-100 disabled:opacity-60"
+                          >
+                            <Clock size={13} /> Acknowledge
+                          </button>
+                        )}
+                        {(c.complaint_type === 'cash_demand' || c.priority === 'high') && (
+                          <button
+                            disabled={updating === c.id}
+                            onClick={() => handleEscalate(c.id)}
+                            className="flex items-center gap-1.5 bg-orange-50 text-orange-700 border border-orange-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-orange-100 disabled:opacity-60"
+                          >
+                            <AlertTriangle size={13} /> Escalate to RPF
+                          </button>
+                        )}
+                        <button
+                          disabled={updating === c.id}
+                          onClick={() => setResolvingId(c.id)}
+                          className="flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-100 disabled:opacity-60"
+                        >
+                          <CheckCircle size={13} /> Resolve
+                        </button>
+                        <button
+                          disabled={updating === c.id}
+                          onClick={() => setRejectingId(c.id)}
+                          className="flex items-center gap-1.5 bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-60"
+                        >
+                          <XCircle size={13} /> Reject
+                        </button>
                       </div>
                     )}
                   </div>
-
-                  {!['resolved', 'rejected'].includes(c.status) && (
-                    <div className="flex gap-2 shrink-0 flex-wrap">
-                      {(c.status === 'submitted' || c.status === 'forwarded') && (
-                        <button
-                          disabled={updating === c.id}
-                          onClick={() => handleStatus(c.id, 'acknowledged')}
-                          className="flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-100 disabled:opacity-60"
-                        >
-                          <Clock size={13} /> Acknowledge
-                        </button>
-                      )}
-                      {(c.complaint_type === 'cash_demand' || c.priority === 'high') && (
-                        <button
-                          disabled={updating === c.id}
-                          onClick={() => handleEscalate(c.id)}
-                          className="flex items-center gap-1.5 bg-orange-50 text-orange-700 border border-orange-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-orange-100 disabled:opacity-60"
-                        >
-                          <AlertTriangle size={13} /> Escalate to RPF
-                        </button>
-                      )}
-                      <button
-                        disabled={updating === c.id}
-                        onClick={() => setResolvingId(c.id)}
-                        className="flex items-center gap-1.5 bg-green-50 text-green-700 border border-green-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-green-100 disabled:opacity-60"
-                      >
-                        <CheckCircle size={13} /> Resolve
-                      </button>
-                      <button
-                        disabled={updating === c.id}
-                        onClick={() => setRejectingId(c.id)}
-                        className="flex items-center gap-1.5 bg-red-50 text-red-700 border border-red-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-red-100 disabled:opacity-60"
-                      >
-                        <XCircle size={13} /> Reject
-                      </button>
-                    </div>
-                  )}
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
 
-      {/* Resolution Confirmation Modal */}
+      {/* Resolution Modal */}
       {resolvingId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
@@ -211,12 +240,12 @@ const StationAdminDashboard = () => {
             <textarea
               value={resolveNote}
               onChange={(e) => setResolveNote(e.target.value)}
-              placeholder="Describe exactly what action was taken e.g. 'Vendor warned and fined ₹500. Passenger refunded the excess ₹6.'"
+              placeholder="Describe exactly what action was taken e.g. 'Vendor warned and fined ₹500. Passenger refunded excess ₹6.'"
               rows={4}
               className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-[#0B1F3A] resize-none mb-4"
             />
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4 text-xs text-amber-700">
-              ⚠️ False resolution is a disciplinary offense. All resolution notes are logged with your account ID and timestamp.
+              ⚠️ False resolution is a disciplinary offense. All resolution notes are logged with your account ID.
             </div>
             <div className="flex gap-3">
               <button
@@ -244,7 +273,7 @@ const StationAdminDashboard = () => {
         </div>
       )}
 
-      {/* Rejection Confirmation Modal */}
+      {/* Rejection Modal */}
       {rejectingId && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
