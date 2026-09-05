@@ -21,7 +21,6 @@ import {
   ShieldOff,
   TrendingUp,
   RotateCcw,
-  Send,
   Clock,
   AlertCircle,
   Zap,
@@ -54,10 +53,10 @@ const SuperAdminDashboard = () => {
         getAllVendors({}),
       ]);
       const pRes = await getAllVendors({ status: "pending_approval" });
-      setPendingVendors(pRes.data);
-      setStats(sRes.data);
-      setComplaints(cRes.data);
-      setVendors(vRes.data);
+      setPendingVendors(pRes.data || []);
+      setStats(sRes.data || null);
+      setComplaints(cRes.data || []);
+      setVendors(vRes.data || []);
     } catch {
       toast.error("Failed to load platform data");
     } finally {
@@ -112,22 +111,6 @@ const SuperAdminDashboard = () => {
     }
   };
 
-  const handleEscalate = async (id: string) => {
-    setUpdatingId(id);
-    try {
-      await updateComplaintStatus(id, {
-        status: "forwarded",
-        note: "Directly escalated to RPF/GRP by Super Admin.",
-      });
-      toast.success("Complaint escalated to RPF/GRP");
-      fetchAllData();
-    } catch {
-      toast.error("Failed to escalate complaint");
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
@@ -168,7 +151,7 @@ const SuperAdminDashboard = () => {
           </div>
           <button
             onClick={() => setShowCreateAdmin(true)}
-            className="bg-[#F5A623] text-[#0B1F3A] px-4 py-2 rounded-lg font-medium text-sm hover:bg-amber-400"
+            className="bg-[#F5A623] text-[#0B1F3A] px-4 py-2 rounded-lg text-sm hover:bg-amber-400 transition-colors font-semibold"
           >
             + Station Admin
           </button>
@@ -176,7 +159,7 @@ const SuperAdminDashboard = () => {
 
         {/* Create Admin Modal */}
         {showCreateAdmin && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 px-4">
             <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
               <h2 className="font-bold text-[#0B1F3A] text-lg mb-5">Create Station Admin</h2>
               <div className="flex flex-col gap-4">
@@ -242,9 +225,9 @@ const SuperAdminDashboard = () => {
         {tab === "complaints" && (
           <div className="flex flex-col gap-4">
             {loading ? (
-              <div className="bg-white rounded-xl p-16 text-center text-gray-400">Loading complaints...</div>
+              <div className="bg-white rounded-xl p-16 text-center text-gray-400 border border-gray-100">Loading complaints...</div>
             ) : complaints.length === 0 ? (
-              <div className="bg-white rounded-xl p-16 text-center text-gray-400">No complaints found</div>
+              <div className="bg-white rounded-xl p-16 text-center text-gray-400 border border-gray-100">No complaints found</div>
             ) : (
               complaints.map((c) => {
                 const isRefunded = c.charged_price && c.irctc_price && c.charged_price > c.irctc_price && c.payment_id;
@@ -336,18 +319,9 @@ const SuperAdminDashboard = () => {
                           <button
                             disabled={updatingId === c.id}
                             onClick={() => handleReopen(c.id)}
-                            className="flex items-center justify-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-100 disabled:opacity-60"
+                            className="flex items-center justify-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-100 disabled:opacity-60 transition-colors"
                           >
                             <RotateCcw size={13} /> Re-open Complaint
-                          </button>
-                        )}
-                        {c.status !== "forwarded" && (
-                          <button
-                            disabled={updatingId === c.id}
-                            onClick={() => handleEscalate(c.id)}
-                            className="flex items-center justify-center gap-1.5 bg-orange-50 text-orange-700 border border-orange-200 px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-orange-100 disabled:opacity-60"
-                          >
-                            <Send size={13} /> Escalate to RPF/GRP
                           </button>
                         )}
                       </div>
@@ -363,7 +337,7 @@ const SuperAdminDashboard = () => {
         {tab === "pending" && (
           <div className="flex flex-col gap-4">
             {pendingVendors.length === 0 ? (
-              <div className="bg-white rounded-xl p-16 text-center text-gray-400">No pending approvals</div>
+              <div className="bg-white rounded-xl p-16 text-center text-gray-400 border border-gray-100">No pending approvals</div>
             ) : (
               pendingVendors.map((v) => (
                 <div key={v.id} className="bg-white rounded-xl border border-amber-200 shadow-sm p-5">
@@ -380,13 +354,13 @@ const SuperAdminDashboard = () => {
                           setPendingVendors(pendingVendors.filter((p) => p.id !== v.id));
                           toast.success("Vendor approved");
                         }}
-                        className="bg-green-50 text-green-700 border border-green-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-100"
+                        className="bg-green-50 text-green-700 border border-green-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-100 transition-colors"
                       >
                         Approve
                       </button>
                       <button
                         onClick={() => handleVendorStatus(v.id, "blacklisted")}
-                        className="bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-100"
+                        className="bg-red-50 text-red-700 border border-red-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
                       >
                         Reject
                       </button>
@@ -439,7 +413,7 @@ const SuperAdminDashboard = () => {
                           {v.status !== "active" && (
                             <button
                               onClick={() => handleVendorStatus(v.id, "active")}
-                              className="text-xs px-2 py-1 rounded bg-green-50 text-green-700 hover:bg-green-100"
+                              className="text-xs px-2 py-1 rounded bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
                             >
                               Activate
                             </button>
@@ -447,7 +421,7 @@ const SuperAdminDashboard = () => {
                           {v.status !== "suspended" && (
                             <button
                               onClick={() => handleVendorStatus(v.id, "suspended")}
-                              className="text-xs px-2 py-1 rounded bg-yellow-50 text-yellow-700 hover:bg-yellow-100"
+                              className="text-xs px-2 py-1 rounded bg-yellow-50 text-yellow-700 hover:bg-yellow-100 transition-colors"
                             >
                               Suspend
                             </button>
@@ -455,7 +429,7 @@ const SuperAdminDashboard = () => {
                           {v.status !== "blacklisted" && (
                             <button
                               onClick={() => handleVendorStatus(v.id, "blacklisted")}
-                              className="text-xs px-2 py-1 rounded bg-red-50 text-red-700 hover:bg-red-100"
+                              className="text-xs px-2 py-1 rounded bg-red-50 text-red-700 hover:bg-red-100 transition-colors"
                             >
                               Blacklist
                             </button>
