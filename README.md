@@ -32,11 +32,6 @@ Every day, millions of train passengers across India are overcharged by food ven
 
 🔗 **[https://railtrack-frontend.vercel.app/](https://railtrack-frontend.vercel.app/)**
 
-| Role | Email | Password |
-|------|-------|----------|
-| Super Admin | admin@railtrack.in | Admin@123 |
-| Search vendors | Train no: `12951` | No login needed |
-| File complaint | `/complaint` | No login needed |
 
 ---
 
