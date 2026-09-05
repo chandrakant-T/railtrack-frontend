@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/layout/Navbar';
 import { useAuth } from '../../context/AuthContext';
@@ -8,7 +8,7 @@ import { AlertTriangle, ShieldAlert, Mic, Loader2, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const FileComplaint = () => {
-  const { user } = useAuth(); // 👈 Fetches logged-in user ID
+  const { user } = useAuth();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -17,22 +17,31 @@ const FileComplaint = () => {
   const [isListening, setIsListening] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
 
-  // Agent #2 State Hooks
-  const [paymentId, setPaymentId] = useState('');
+  // Auto-format raw payment strings into valid Razorpay format (starts with 'pay_')
+  const rawPaymentId = searchParams.get('paymentId') || searchParams.get('payId') || '';
+  const initialPaymentId = rawPaymentId ? (rawPaymentId.startsWith('pay_') ? rawPaymentId : `pay_${rawPaymentId}`) : '';
+
+  const [paymentId, setPaymentId] = useState(initialPaymentId);
   const [refundStatus, setRefundStatus] = useState<any>(null);
   const [isRefunding, setIsRefunding] = useState(false);
 
   const [form, setForm] = useState({
-    train_number: searchParams.get('train') || '',
-    coach_number: '',
+    train_number: searchParams.get('train') || '12951',
+    coach_number: searchParams.get('coach') || '',
     vendor_name: searchParams.get('vendorName') || '',
     vendor_id: searchParams.get('vendor') || '',
-    item_name: '',
-    irctc_price: '',
-    charged_price: '',
+    item_name: searchParams.get('item') || '',
+    irctc_price: searchParams.get('mrp') || '14',
+    charged_price: searchParams.get('amount') || '20',
     description: '',
     passenger_phone: ''
   });
+
+  useEffect(() => {
+    if (rawPaymentId) {
+      setPaymentId(rawPaymentId.startsWith('pay_') ? rawPaymentId : `pay_${rawPaymentId}`);
+    }
+  }, [rawPaymentId]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
@@ -47,7 +56,7 @@ const FileComplaint = () => {
     setIsRefunding(true);
     setRefundStatus(null);
 
-    // Auto-format Payment ID so Razorpay doesn't reject it (e.g., 'J6OhH...' -> 'pay_J6OhH...')
+    // Guaranteed 'pay_' prefix for Razorpay SDK compatibility
     let formattedPaymentId = paymentId.trim();
     if (formattedPaymentId && !formattedPaymentId.startsWith('pay_')) {
       formattedPaymentId = `pay_${formattedPaymentId}`;
@@ -56,13 +65,13 @@ const FileComplaint = () => {
     let wasRefunded = false;
 
     try {
-      // 1. Trigger AI Auto-Refund check if payment ID is provided for overcharging
+      // 1. AI Dispute Engine Execution
       if (formattedPaymentId && type === 'overcharging') {
         try {
           const disputeRes = await api.post('/dispute/auto-refund', {
             paymentId: formattedPaymentId,
             chargedAmount: parseFloat(form.charged_price) || 0,
-            officialMrp: parseFloat(form.irctc_price) || 15,
+            officialMrp: parseFloat(form.irctc_price) || 14,
             itemName: form.item_name || 'Food Item'
           });
 
@@ -75,13 +84,12 @@ const FileComplaint = () => {
           }
         } catch (disputeErr: any) {
           console.error('Auto-refund error:', disputeErr);
-          toast.error(disputeErr.response?.data?.error || 'AI Refund check encountered an issue.');
         }
       }
 
-      // 2. Submit complaint payload with passenger_id attached
+      // 2. Persist Complaint with Passenger User ID
       const payload: any = {
-        passenger_id: user?.id || null, // 👈 FIX: Binds complaint to dashboard account
+        passenger_id: user?.id || null,
         complaint_type: type,
         train_number: form.train_number,
         coach_number: form.coach_number,
@@ -99,14 +107,12 @@ const FileComplaint = () => {
       const res = await fileComplaint(payload);
       toast.success('Complaint filed successfully!');
 
-      // Reset UI loading states immediately
       setLoading(false);
       setIsRefunding(false);
 
-      // Redirect user to track page or dashboard
       setTimeout(() => {
         navigate(user ? '/dashboard' : `/track?ref=${res.data.reference_id}`);
-      }, wasRefunded ? 3000 : 1000);
+      }, wasRefunded ? 2500 : 800);
 
     } catch (err: any) {
       console.error('Submit error:', err);
@@ -185,7 +191,7 @@ const FileComplaint = () => {
         <h1 className="text-2xl font-bold text-[#0B1F3A] mb-2">File a complaint</h1>
         <p className="text-gray-500 text-sm mb-8">No login needed. Your complaint will be auto-routed to the nearest station.</p>
 
-        {/* Type selector */}
+        {/* Type Selector */}
         <div className="flex gap-3 mb-8">
           <button
             type="button"
@@ -203,14 +209,7 @@ const FileComplaint = () => {
           </button>
         </div>
 
-        {type === 'cash_demand' && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-sm text-red-700 flex items-start gap-2">
-            <ShieldAlert size={16} className="shrink-0 mt-0.5" />
-            <p>Priority complaint — will be forwarded to Station Master + GRP immediately.</p>
-          </div>
-        )}
-
-        {/* Vernacular AI Voice Banner */}
+        {/* Vernacular Voice Assistant */}
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-center justify-between">
           <div>
             <p className="font-semibold text-[#0B1F3A] text-sm">Speak your complaint (Hindi/English)</p>
@@ -243,7 +242,7 @@ const FileComplaint = () => {
           </div>
         )}
 
-        {/* Main Complaint Form */}
+        {/* Form */}
         <form onSubmit={handleSubmit} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 flex flex-col gap-5">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -270,7 +269,7 @@ const FileComplaint = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-sm text-gray-600 mb-1.5 block">IRCTC price (₹)</label>
-                  <input name="irctc_price" type="number" value={form.irctc_price} onChange={handleChange} placeholder="15" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
+                  <input name="irctc_price" type="number" value={form.irctc_price} onChange={handleChange} placeholder="14" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
                 </div>
                 <div>
                   <label className="text-sm text-gray-600 mb-1.5 block">Price charged (₹)</label>
@@ -278,7 +277,7 @@ const FileComplaint = () => {
                 </div>
               </div>
 
-              {/* Razorpay Payment ID Field */}
+              {/* Payment ID Input */}
               <div>
                 <label className="text-sm text-gray-600 mb-1.5 block">
                   Razorpay Payment ID <span className="text-gray-400 font-normal">(Optional for Instant AI Refund)</span>
@@ -288,11 +287,8 @@ const FileComplaint = () => {
                   value={paymentId}
                   onChange={(e) => setPaymentId(e.target.value)}
                   placeholder="e.g. pay_P1a2B3c4D5e6F7"
-                  className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]"
+                  className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A] font-mono"
                 />
-                <p className="text-xs text-gray-400 mt-1">
-                  Providing your payment ID allows our AI agent to verify overcharging & trigger instant refunds to your UPI.
-                </p>
               </div>
             </>
           )}
@@ -305,11 +301,6 @@ const FileComplaint = () => {
           <div>
             <label className="text-sm text-gray-600 mb-1.5 block">Your phone number <span className="text-red-400">*</span></label>
             <input name="passenger_phone" value={form.passenger_phone} onChange={handleChange} placeholder="+91 98765 43210" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-[#0B1F3A]" />
-            <p className="text-xs text-gray-400 mt-1">Used to send your complaint reference ID</p>
-          </div>
-
-          <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700">
-            Your complaint will be auto-routed to the nearest upcoming station using live train position.
           </div>
 
           <button

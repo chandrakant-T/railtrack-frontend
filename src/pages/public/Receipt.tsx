@@ -1,7 +1,7 @@
 import { useLocation, Link } from 'react-router-dom';
 import Navbar from '../../components/layout/Navbar';
 import { formatCurrency } from '../../utils/helpers';
-import { CheckCircle, Download, AlertTriangle } from 'lucide-react';
+import { CheckCircle, AlertTriangle } from 'lucide-react';
 
 const Receipt = () => {
   const { state } = useLocation();
@@ -14,6 +14,16 @@ const Receipt = () => {
   );
 
   const { receipt_id, vendor_name, items, total, payment_id } = state;
+
+  // Ensure payment ID strictly begins with 'pay_' for SDK & backend AI agent compatibility
+  const rawId = payment_id || receipt_id || 'UNKNOWN';
+  const formattedPaymentId = rawId.startsWith('pay_') ? rawId : `pay_${rawId}`;
+
+  // Extract primary item name for pre-filling complaint form
+  const primaryItemName = items?.map((i: any) => i.name).join(', ') || 'Food Item';
+
+  // Build route string with auto-fill URL search params for FileComplaint page
+  const reportUrl = `/complaint?paymentId=${encodeURIComponent(formattedPaymentId)}&amount=${total}&vendorName=${encodeURIComponent(vendor_name || '')}&item=${encodeURIComponent(primaryItemName)}`;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -33,7 +43,7 @@ const Receipt = () => {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-6">
           <div className="text-center mb-6">
             <p className="text-xs text-gray-400 mb-1">Receipt ID</p>
-            <p className="font-bold text-lg text-[#0B1F3A] tracking-wider">{receipt_id}</p>
+            <p className="font-bold text-lg text-[#0B1F3A] tracking-wider font-mono">{receipt_id}</p>
           </div>
 
           <div className="flex flex-col gap-2 text-sm mb-6">
@@ -43,7 +53,9 @@ const Receipt = () => {
             </div>
             <div className="flex justify-between py-1.5 border-b border-gray-50">
               <span className="text-gray-400">Payment ID</span>
-              <span className="font-medium text-xs">{payment_id?.slice(-12)}</span>
+              <span className="font-mono font-medium text-xs text-[#0B1F3A] bg-gray-100 px-1.5 py-0.5 rounded">
+                {formattedPaymentId}
+              </span>
             </div>
           </div>
 
@@ -66,16 +78,23 @@ const Receipt = () => {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-start gap-3">
           <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
           <p className="text-amber-700 text-sm">
-            If the amount charged differs from this receipt, file an overcharging complaint immediately.
+            If the amount charged differs from this receipt or official IRCTC prices, file an overcharging complaint immediately for an instant AI refund.
           </p>
         </div>
 
+        {/* Action buttons */}
         <div className="flex gap-3">
-          <Link to="/complaint" className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-xl text-sm font-semibold text-center hover:bg-gray-50">
-            <AlertTriangle size={14} className="inline mr-1" />
+          <Link
+            to={reportUrl}
+            className="flex-1 border border-red-200 bg-red-50 text-red-700 py-3 rounded-xl text-sm font-semibold text-center hover:bg-red-100 transition-colors flex items-center justify-center gap-1.5"
+          >
+            <AlertTriangle size={15} />
             Report issue
           </Link>
-          <Link to="/" className="flex-1 bg-[#0B1F3A] text-white py-3 rounded-xl text-sm font-semibold text-center hover:bg-blue-900">
+          <Link
+            to="/"
+            className="flex-1 bg-[#0B1F3A] text-white py-3 rounded-xl text-sm font-semibold text-center hover:bg-blue-900 transition-colors"
+          >
             Back to home
           </Link>
         </div>
